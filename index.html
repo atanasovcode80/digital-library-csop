@@ -3,273 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дигитална библиотека на ЦСОП "Леда Милева"</title>
+    <title>Дигитална библиотека - ЦСОП "Леда Милева"</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Firebase SDKs -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap');
+        body { font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; }
+        .animate-pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-[#F8FAFC]">
+    <div id="root"></div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'csop-leda-mileva-lib';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'csop-lm-library';
 
-        // Exporting functions correctly to window.fb
-        window.fb = { 
-            db, auth, appId, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query,
-            signInWithCustomToken, signInAnonymously, onAuthStateChanged
-        };
+        window.fb = { db, auth, appId, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, signInWithCustomToken, signInAnonymously, onAuthStateChanged };
     </script>
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap');
-        body { font-family: 'Manrope', sans-serif; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-</head>
-<body class="bg-[#F1F5F9]">
-    <div id="root"></div>
-
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
+
+        const MAIN_CATEGORIES = {
+            therapy: { id: 'therapy', name: 'Терапия', icon: 'stethoscope', color: 'from-teal-600 to-emerald-600', bg: 'bg-teal-600' },
+            education: { id: 'education', name: 'Обучение', icon: 'graduation-cap', color: 'from-orange-500 to-amber-500', bg: 'bg-orange-500' }
+        };
+
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
 
         function App() {
-            const ADMIN_PASSWORD = '1500510';
-            const SUPERVISOR_PASSWORD = 'As800224@';
-            
-            const MAIN_CATEGORIES = {
-                therapy: { id: 'therapy', name: 'Терапия', icon: 'stethoscope', color: 'from-teal-500 to-emerald-600', accent: 'teal', bg: 'bg-teal-500' },
-                education: { id: 'education', name: 'Обучение', icon: 'graduation-cap', color: 'from-orange-400 to-amber-500', accent: 'orange', bg: 'bg-orange-500' }
-            };
-
-            const [subfolders, setSubfolders] = useState([]);
-            const [resources, setResources] = useState([]);
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-
-            const [currentView, setCurrentView] = useState('home');
-            const [activeCategory, setActiveCategory] = useState(null);
-            const [activeSubfolder, setActiveSubfolder] = useState(null);
-            const [role, setRole] = useState(null);
-            
-            const [searchQuery, setSearchQuery] = useState('');
-            const [searchFilters, setSearchFilters] = useState({ therapy: true, education: true });
-            
-            const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-            const [passwordInput, setPasswordInput] = useState('');
-            const [isSubfolderModalOpen, setIsSubfolderModalOpen] = useState(false);
-            const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
-            const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
-            const [supervisorAction, setSupervisorAction] = useState(null);
-            
-            const [editingId, setEditingId] = useState(null);
-            const [formData, setFormData] = useState({
-                subfolderName: '', subfolderParent: 'therapy',
-                resTitle: '', resDescription: '', resUrl: '', resType: 'link', resTargetSubs: []
+            const [state, setState] = useState({
+                subfolders: [],
+                resources: [],
+                loading: true,
+                user: null,
+                role: null,
+                currentView: 'home',
+                activeCategory: null,
+                activeSubfolder: null
             });
 
-            // 1. Initialize Auth with retry logic
+            const [search, setSearch] = useState('');
+            const [passwordModal, setPasswordModal] = useState({ open: false, value: '' });
+            const [editModal, setEditModal] = useState({ type: null, data: null, open: false });
+
+            // Оптимизирана инициализация
             useEffect(() => {
-                const initAuthWithRetry = async (retries = 5, delay = 1000) => {
-                    for (let i = 0; i < retries; i++) {
-                        try {
-                            if (typeof fb === 'undefined') {
-                                throw new Error('Firebase not yet initialized');
-                            }
-                            
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                await fb.signInWithCustomToken(fb.auth, __initial_auth_token);
-                            } else {
-                                await fb.signInAnonymously(fb.auth);
-                            }
-                            return; 
-                        } catch (e) {
-                            if (i === retries - 1) {
-                                console.error("Authentication failed after all retries", e);
-                            }
-                            await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                const init = async () => {
+                    const checkFb = setInterval(async () => {
+                        if (window.fb) {
+                            clearInterval(checkFb);
+                            try {
+                                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                    await fb.signInWithCustomToken(fb.auth, __initial_auth_token);
+                                } else {
+                                    await fb.signInAnonymously(fb.auth);
+                                }
+                                
+                                fb.onAuthStateChanged(fb.auth, (u) => {
+                                    setState(prev => ({ ...prev, user: u }));
+                                    if (u) startSync();
+                                });
+                            } catch (e) { console.error(e); }
                         }
-                    }
+                    }, 50);
                 };
-
-                const setupAuthListener = () => {
-                    if (typeof fb !== 'undefined' && fb.onAuthStateChanged) {
-                        return fb.onAuthStateChanged(fb.auth, (u) => {
-                            setUser(u);
-                            if (!u) setRole(null);
-                        });
-                    }
-                };
-
-                let unsub;
-                const checkReady = setInterval(() => {
-                    if (typeof fb !== 'undefined') {
-                        clearInterval(checkReady);
-                        initAuthWithRetry();
-                        unsub = setupAuthListener();
-                    }
-                }, 100);
-
-                return () => {
-                    clearInterval(checkReady);
-                    if (unsub) unsub();
-                };
+                init();
             }, []);
 
-            // 2. Data Listeners (Firestore)
-            useEffect(() => {
-                if (!user) return;
+            const startSync = useCallback(() => {
+                const qSubs = fb.collection(fb.db, 'artifacts', fb.appId, 'public', 'data', 'subfolders');
+                const qRes = fb.collection(fb.db, 'artifacts', fb.appId, 'public', 'data', 'resources');
 
-                const subCollection = fb.collection(fb.db, 'artifacts', fb.appId, 'public', 'data', 'subfolders');
-                const resCollection = fb.collection(fb.db, 'artifacts', fb.appId, 'public', 'data', 'resources');
-
-                const unsubSubs = fb.onSnapshot(subCollection, (snap) => {
-                    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    setSubfolders(data);
-                    setLoading(false);
-                }, (err) => {
-                    console.error("Firestore error (subfolders):", err);
-                    setLoading(false);
+                const unsubSubs = fb.onSnapshot(qSubs, (s) => {
+                    const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    setState(prev => ({ ...prev, subfolders: data, loading: false }));
                 });
 
-                const unsubRes = fb.onSnapshot(resCollection, (snap) => {
-                    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    setResources(data);
-                }, (err) => {
-                    console.error("Firestore error (resources):", err);
+                const unsubRes = fb.onSnapshot(qRes, (s) => {
+                    const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    setState(prev => ({ ...prev, resources: data }));
                 });
 
                 return () => { unsubSubs(); unsubRes(); };
-            }, [user]);
-
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
-
-            const closeAllModals = () => {
-                setIsPasswordModalOpen(false);
-                setIsSubfolderModalOpen(false);
-                setIsResourceModalOpen(false);
-                setIsSupervisorModalOpen(false);
-                setEditingId(null);
-                setPasswordInput('');
-                setSupervisorAction(null);
-            };
-
-            const getSubfolderCount = (catId) => subfolders.filter(s => s.parentId === catId).length;
-            const getResourceCount = (subId) => resources.filter(r => r.subfolderIds && r.subfolderIds.includes(subId)).length;
-
-            const filteredResults = useMemo(() => {
-                if (!searchQuery.trim()) return [];
-                return resources.filter(res => {
-                    const matchesText = res.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                      res.description?.toLowerCase().includes(searchQuery.toLowerCase());
-                    const resSubs = subfolders.filter(s => res.subfolderIds?.includes(s.id));
-                    const hasCategoryMatch = resSubs.some(s => searchFilters[s.parentId]);
-                    return matchesText && hasCategoryMatch;
-                }).map(res => {
-                    const firstSub = subfolders.find(s => res.subfolderIds?.includes(s.id));
-                    return {
-                        ...res,
-                        subfolderName: res.subfolderIds?.map(id => subfolders.find(s => s.id === id)?.name).filter(Boolean).join(', '),
-                        categoryName: firstSub ? MAIN_CATEGORIES[firstSub.parentId].name : 'Общи',
-                        categoryColor: firstSub ? (firstSub.parentId === 'therapy' ? 'text-teal-600 bg-teal-50 border-teal-100' : 'text-orange-600 bg-orange-50 border-orange-100') : 'bg-slate-50 border-slate-100'
-                    };
-                });
-            }, [searchQuery, searchFilters, resources, subfolders]);
+            }, []);
 
             const handleLogin = (e) => {
                 e.preventDefault();
-                if (passwordInput === ADMIN_PASSWORD) setRole('admin');
-                else if (passwordInput === SUPERVISOR_PASSWORD) setRole('supervisor');
-                else return alert("Грешна парола!");
-                setIsPasswordModalOpen(false);
-                setPasswordInput('');
+                if (passwordModal.value === '1500510') setState(p => ({...p, role: 'admin'}));
+                else if (passwordModal.value === 'As800224@') setState(p => ({...p, role: 'supervisor'}));
+                else return;
+                setPasswordModal({ open: false, value: '' });
             };
 
-            const confirmDelete = (action) => {
-                if (role === 'supervisor') action();
-                else {
-                    setSupervisorAction(() => action);
-                    setIsSupervisorModalOpen(true);
-                }
-            };
+            const filteredResources = useMemo(() => {
+                if (!search.trim()) return [];
+                return state.resources.filter(r => 
+                    r.title?.toLowerCase().includes(search.toLowerCase()) || 
+                    r.description?.toLowerCase().includes(search.toLowerCase())
+                );
+            }, [search, state.resources]);
 
-            const handleSupervisorConfirm = (e) => {
-                e.preventDefault();
-                if (passwordInput === SUPERVISOR_PASSWORD) {
-                    if (supervisorAction) supervisorAction();
-                    setIsSupervisorModalOpen(false);
-                    setSupervisorAction(null);
-                    setPasswordInput('');
-                } else alert("Грешна супервайзерска парола!");
-            };
-
-            const handleSaveSubfolder = async (e) => {
-                e.preventDefault();
-                if (!user || !formData.subfolderName.trim()) return;
-                
-                const data = { name: formData.subfolderName, parentId: formData.subfolderParent };
-                
-                try {
-                    if (editingId) {
-                        await fb.updateDoc(fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'subfolders', editingId), data);
-                    } else {
-                        await fb.addDoc(fb.collection(fb.db, 'artifacts', fb.appId, 'public', 'data', 'subfolders'), data);
-                    }
-                    closeAllModals();
-                } catch (err) { alert("Грешка при запис в облака"); }
-            };
-
-            const handleSaveResource = async (e) => {
-                e.preventDefault();
-                if (!user || !formData.resTitle.trim() || formData.resTargetSubs.length === 0) return alert("Попълнете заглавие и изберете раздел!");
-                
-                const data = {
-                    title: formData.resTitle,
-                    description: formData.resDescription,
-                    url: formData.resUrl,
-                    type: formData.resType,
-                    subfolderIds: formData.resTargetSubs
-                };
-
-                try {
-                    if (editingId) {
-                        await fb.updateDoc(fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'resources', editingId), data);
-                    } else {
-                        await fb.addDoc(fb.collection(fb.db, 'artifacts', fb.appId, 'public', 'data', 'resources'), data);
-                    }
-                    closeAllModals();
-                } catch (err) { alert("Грешка при качване"); }
-            };
-
-            const deleteSubfolder = async (id) => {
-                try {
-                    await fb.deleteDoc(fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'subfolders', id));
-                } catch (e) { alert("Грешка при изтриване"); }
-            };
-
-            const deleteResource = async (id) => {
-                try {
-                    await fb.deleteDoc(fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'resources', id));
-                } catch (e) { alert("Грешка при изтриване"); }
-            };
-
-            if (loading) {
+            if (state.loading) {
                 return (
-                    <div className="flex h-screen items-center justify-center bg-slate-50">
-                        <div className="text-center">
-                            <div className="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                            <p className="font-black uppercase text-slate-400 tracking-widest text-xs">Зареждане на облачна библиотека...</p>
+                    <div className="min-h-screen flex items-center justify-center bg-white">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Синхронизиране...</p>
                         </div>
                     </div>
                 );
@@ -277,245 +134,155 @@
 
             return (
                 <div className="flex flex-col min-h-screen">
-                    <header className="bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 p-4 sticky top-0 z-50 shadow-xl">
-                        <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-6">
-                            <div className="flex items-center gap-4 cursor-pointer group" onClick={() => {setCurrentView('home'); setActiveCategory(null); setSearchQuery('');}}>
-                                <div className="bg-white p-3 rounded-2xl text-teal-600 shadow-lg"><i data-lucide="book-open" size="28"></i></div>
-                                <div className="text-white">
-                                    <h1 className="text-lg md:text-xl font-black uppercase tracking-tight leading-none">Дигитална библиотека</h1>
-                                    <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] mt-1 text-teal-100">ЦСОП "Леда Милева"</p>
+                    <header className="bg-slate-900 text-white p-4 sticky top-0 z-50 shadow-2xl">
+                        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setState(p => ({...p, currentView: 'home', activeCategory: null, activeSubfolder: null}))}>
+                                <div className="bg-teal-500 p-2 rounded-xl"><Icon name="book-open" size={24} /></div>
+                                <div>
+                                    <h1 className="font-black uppercase text-sm tracking-tight">Библиотека</h1>
+                                    <p className="text-[8px] font-bold opacity-50 tracking-widest uppercase">ЦСОП "Леда Милева"</p>
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-2 w-full max-w-lg">
-                                <div className="relative">
-                                    <i data-lucide="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50" size="18"></i>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Търсене..." 
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-12 pr-4 py-3 bg-white/10 backdrop-blur-md rounded-2xl outline-none border border-white/20 text-white placeholder-white/60 font-bold text-sm"
-                                    />
-                                </div>
-                                <div className="flex gap-4 px-2">
-                                    {Object.entries(MAIN_CATEGORIES).map(([key, cat]) => (
-                                        <label key={key} className="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" checked={searchFilters[key]} onChange={() => setSearchFilters(prev => ({...prev, [key]: !prev[key]}))} className="w-3 h-3 rounded text-teal-600" />
-                                            <span className="text-[10px] font-black uppercase text-white/70">{cat.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
+
+                            <div className="relative w-full max-w-md">
+                                <Icon name="search" size={16} className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Бързо търсене в архива..." 
+                                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-2.5 pl-11 pr-4 text-sm focus:bg-white/20 outline-none transition-all"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
                             </div>
-                            <button onClick={() => role ? setRole(null) : setIsPasswordModalOpen(true)} className="px-6 py-3 bg-white text-teal-700 rounded-2xl text-[11px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all">
-                                {role ? `Изход (${role})` : 'Вход за учители'}
+
+                            <button 
+                                onClick={() => state.role ? setState(p => ({...p, role: null})) : setPasswordModal({open: true, value: ''})}
+                                className="px-5 py-2.5 bg-white text-slate-900 rounded-xl text-[10px] font-black uppercase hover:bg-teal-500 hover:text-white transition-all"
+                            >
+                                {state.role ? `Изход (${state.role})` : 'Вход'}
                             </button>
                         </div>
                     </header>
 
-                    <main className="flex-grow max-w-6xl mx-auto w-full p-4 py-8">
-                        {/* SEARCH RESULTS VIEW */}
-                        {searchQuery.trim() !== '' && (
-                            <div className="animate-fade-in space-y-4 mb-16">
-                                <h2 className="text-2xl font-black uppercase text-slate-900 tracking-tighter flex items-center gap-2 border-b pb-4">
-                                    <i data-lucide="layers" className="text-teal-600" size="24"></i> Резултати
-                                </h2>
-                                {filteredResults.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {filteredResults.map(res => (
-                                            <div key={res.id} className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col justify-between group hover:shadow-2xl transition-all">
-                                                <div className="flex items-start gap-4 mb-4">
-                                                    <div className="p-4 bg-slate-50 rounded-2xl text-slate-400"><i data-lucide={res.type === 'file' ? 'file-text' : 'link'}></i></div>
-                                                    <div className="flex-grow">
-                                                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${res.categoryColor}`}>{res.categoryName}</span>
-                                                        </div>
-                                                        <h4 className="font-black text-base text-slate-800 leading-tight">{res.title}</h4>
-                                                    </div>
-                                                </div>
-                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="bg-slate-900 text-white py-3 rounded-2xl text-[10px] font-black uppercase text-center">Отвори</a>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : <div className="text-center py-20 text-slate-400 uppercase font-black">Няма нищо намерено</div>}
-                            </div>
-                        )}
-
-                        {/* ADMIN PANEL */}
-                        {role && searchQuery === '' && (
-                            <div className="bg-slate-900 p-8 rounded-[40px] mb-12 shadow-2xl">
+                    <main className="flex-grow max-w-6xl mx-auto w-full p-6">
+                        {search.trim() ? (
+                            <div className="fade-in space-y-4">
+                                <h2 className="text-xl font-black uppercase text-slate-800 border-b pb-4">Резултати ({filteredResources.length})</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <button onClick={() => { setEditingId(null); setFormData({subfolderName: '', subfolderParent: 'therapy'}); setIsSubfolderModalOpen(true); }} className="p-6 bg-white/5 border border-white/10 text-white rounded-3xl font-black uppercase text-xs hover:bg-white hover:text-slate-900 transition-all">Нов раздел</button>
-                                    <button onClick={() => { setEditingId(null); setFormData({...formData, resTitle: '', resDescription: '', resUrl: '', resTargetSubs: activeSubfolder ? [activeSubfolder.id] : []}); setIsResourceModalOpen(true); }} className="p-6 bg-teal-600 text-white rounded-3xl font-black uppercase text-xs hover:bg-teal-500 transition-all">Качи ресурс</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* CATEGORIES VIEW */}
-                        {currentView === 'home' && searchQuery === '' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-16 animate-fade-in">
-                                {Object.values(MAIN_CATEGORIES).map(cat => (
-                                    <div key={cat.id} onClick={() => {setActiveCategory(cat); setCurrentView('category');}} className={`h-64 rounded-[50px] bg-gradient-to-br ${cat.color} p-12 text-white cursor-pointer shadow-2xl hover:scale-[1.02] transition-all flex flex-col justify-between relative overflow-hidden border-b-8 border-black/20`}>
-                                        <div className="bg-white/20 w-16 h-16 rounded-3xl flex items-center justify-center backdrop-blur-xl border border-white/30"><i data-lucide={cat.icon} size="32"></i></div>
-                                        <div>
-                                            <h2 className="text-5xl font-black uppercase tracking-tighter leading-none">{cat.name}</h2>
-                                            <p className="text-[11px] font-black uppercase opacity-90 tracking-[0.3em] mt-3 ml-1">{getSubfolderCount(cat.id)} раздела</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* SUBFOLDERS VIEW */}
-                        {currentView === 'category' && searchQuery === '' && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-                                <button onClick={() => setCurrentView('home')} className="col-span-full text-xs font-black text-slate-500 uppercase flex items-center gap-2 mb-8 hover:text-teal-600"><i data-lucide="arrow-left" size="18"></i> Начало</button>
-                                {subfolders.filter(s => s.parentId === activeCategory.id).map(folder => (
-                                    <div key={folder.id} onClick={() => {setActiveSubfolder(folder); setCurrentView('subfolder');}} className="bg-white p-8 rounded-[40px] border-b-4 border-slate-200 shadow-xl hover:shadow-2xl hover:border-teal-500 transition-all cursor-pointer group">
-                                        <div className="flex justify-between items-start mb-8">
-                                            <div className="bg-slate-100 p-5 rounded-3xl text-slate-400 group-hover:text-teal-600"><i data-lucide="folder-closed" size="28"></i></div>
-                                            <div className="flex gap-1">
-                                                {role === 'supervisor' && <button onClick={(e) => { e.stopPropagation(); setEditingId(folder.id); setFormData({subfolderName: folder.name, subfolderParent: folder.parentId}); setIsSubfolderModalOpen(true); }} className="text-slate-300 hover:text-teal-500 p-2"><i data-lucide="pencil" size="18"></i></button>}
-                                                {role && <button onClick={(e) => {e.stopPropagation(); confirmDelete(() => deleteSubfolder(folder.id))} } className="text-slate-300 hover:text-red-500 p-2"><i data-lucide="trash-2" size="18"></i></button>}
+                                    {filteredResources.map(res => (
+                                        <div key={res.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-slate-50 p-3 rounded-xl text-slate-400"><Icon name={res.type === 'file' ? 'file-text' : 'link'} /></div>
+                                                <h4 className="font-bold text-slate-700">{res.title}</h4>
                                             </div>
-                                        </div>
-                                        <h3 className="font-black uppercase text-lg text-slate-800 tracking-tight leading-tight">{folder.name}</h3>
-                                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-4">{getResourceCount(folder.id)} материала</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* RESOURCES LIST VIEW */}
-                        {currentView === 'subfolder' && searchQuery === '' && (
-                            <div className="animate-fade-in space-y-6">
-                                <button onClick={() => setCurrentView('category')} className="text-xs font-black text-slate-500 uppercase flex items-center gap-2 mb-6 hover:text-teal-600 transition-colors w-fit"><i data-lucide="arrow-left" size="18"></i> Назад към {activeCategory.name}</button>
-                                <div className="bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6 border-l-[12px] border-l-teal-600">
-                                    <div>
-                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase text-white ${activeCategory.bg}`}>{activeCategory.name}</span>
-                                        <h2 className="text-4xl font-black uppercase text-slate-900 tracking-tighter mt-2">{activeSubfolder.name}</h2>
-                                    </div>
-                                </div>
-                                <div className="grid gap-4 mt-10">
-                                    {resources.filter(r => r.subfolderIds?.includes(activeSubfolder.id)).map(res => (
-                                        <div key={res.id} className="bg-white p-6 rounded-[35px] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group hover:shadow-2xl transition-all">
-                                            <div className="flex items-center gap-6">
-                                                <div className="p-5 bg-slate-50 rounded-2xl text-slate-400 group-hover:text-teal-600"><i data-lucide={res.type === 'file' ? 'file-text' : 'link'} size="28"></i></div>
-                                                <div>
-                                                    <h4 className="font-black text-lg text-slate-800">{res.title}</h4>
-                                                    <p className="text-sm text-slate-400">{res.description}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                {role === 'supervisor' && <button onClick={() => {setEditingId(res.id); setFormData({resTitle: res.title, resDescription: res.description, resUrl: res.url, resType: res.type, resTargetSubs: res.subfolderIds}); setIsResourceModalOpen(true);}} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-teal-500"><i data-lucide="pencil" size="18"></i></button>}
-                                                {role && <button onClick={() => confirmDelete(() => deleteResource(res.id))} className="text-slate-200 hover:text-red-500 p-2"><i data-lucide="trash-2" size="20"></i></button>}
-                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="bg-teal-600 text-white px-10 py-4 rounded-2xl text-xs font-black uppercase hover:bg-slate-900 transition-all">Отвори</a>
-                                            </div>
+                                            <a href={res.url} target="_blank" className="bg-slate-900 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">Виж</a>
                                         </div>
                                     ))}
                                 </div>
                             </div>
+                        ) : (
+                            <>
+                                {state.currentView === 'home' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-10 fade-in">
+                                        {Object.values(MAIN_CATEGORIES).map(cat => (
+                                            <div 
+                                                key={cat.id} 
+                                                onClick={() => setState(p => ({...p, currentView: 'category', activeCategory: cat}))}
+                                                className={`group relative overflow-hidden h-64 rounded-[40px] bg-gradient-to-br ${cat.color} p-10 text-white cursor-pointer shadow-xl hover:shadow-2xl transition-all hover:-translate-y-1`}
+                                            >
+                                                <Icon name={cat.icon} size={48} className="opacity-20 absolute -right-4 -bottom-4 transform -rotate-12 group-hover:scale-110 transition-transform" />
+                                                <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">{cat.name}</h2>
+                                                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">
+                                                    {state.subfolders.filter(s => s.parentId === cat.id).length} Раздела
+                                                </p>
+                                                <div className="absolute bottom-10 left-10 w-12 h-1 bg-white/30 rounded-full group-hover:w-24 transition-all"></div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {state.currentView === 'category' && (
+                                    <div className="fade-in space-y-6">
+                                        <button onClick={() => setState(p => ({...p, currentView: 'home'}))} className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2 hover:text-teal-600">
+                                            <Icon name="chevron-left" size={14} /> Обратно
+                                        </button>
+                                        <h2 className="text-3xl font-black uppercase text-slate-900 tracking-tighter">{state.activeCategory.name}</h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {state.subfolders.filter(s => s.parentId === state.activeCategory.id).map(f => (
+                                                <div 
+                                                    key={f.id} 
+                                                    onClick={() => setState(p => ({...p, currentView: 'subfolder', activeSubfolder: f}))}
+                                                    className="bg-white p-6 rounded-3xl border border-slate-100 hover:border-teal-500 cursor-pointer shadow-sm hover:shadow-md transition-all group"
+                                                >
+                                                    <div className="bg-slate-50 w-12 h-12 rounded-2xl flex items-center justify-center text-slate-300 group-hover:text-teal-500 transition-colors mb-4">
+                                                        <Icon name="folder" size={24} />
+                                                    </div>
+                                                    <h3 className="font-black uppercase text-sm text-slate-800">{f.name}</h3>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-2">
+                                                        {state.resources.filter(r => r.subfolderIds?.includes(f.id)).length} ресурса
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {state.currentView === 'subfolder' && (
+                                    <div className="fade-in space-y-4">
+                                        <button onClick={() => setState(p => ({...p, currentView: 'category'}))} className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
+                                            <Icon name="chevron-left" size={14} /> Назад
+                                        </button>
+                                        <div className="flex items-center justify-between bg-white p-8 rounded-[30px] border border-slate-100 border-l-8 border-l-teal-500 shadow-sm">
+                                            <h2 className="text-2xl font-black uppercase text-slate-900">{state.activeSubfolder.name}</h2>
+                                        </div>
+                                        <div className="grid gap-3 pt-4">
+                                            {state.resources.filter(r => r.subfolderIds?.includes(state.activeSubfolder.id)).map(res => (
+                                                <div key={res.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-md transition-all">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="bg-slate-50 p-3 rounded-xl text-slate-400"><Icon name={res.type === 'file' ? 'file-text' : 'link'} /></div>
+                                                        <div>
+                                                            <h4 className="font-black text-slate-800">{res.title}</h4>
+                                                            <p className="text-[10px] text-slate-400">{res.description}</p>
+                                                        </div>
+                                                    </div>
+                                                    <a href={res.url} target="_blank" className="bg-teal-600 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase text-center hover:bg-slate-900 transition-all">Отвори</a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </main>
 
-                    {/* FOOTER - UPDATED */}
-                    <footer className="bg-white border-t border-slate-200 py-12 mt-auto">
-                        <div className="max-w-6xl mx-auto px-6">
-                            <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-8">
-                                <div className="text-center md:text-left">
-                                    <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg leading-tight">ЦСОП "Леда Милева"</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Център за специална образователна подкрепа</p>
-                                </div>
-                                <div className="flex flex-col sm:flex-row gap-6 items-center">
-                                    <a href="mailto:info-1500510@edu.mon.bg" className="flex items-center gap-3 text-slate-600 hover:text-teal-600 transition-colors group">
-                                        <div className="bg-slate-50 p-3 rounded-xl group-hover:bg-teal-50"><i data-lucide="mail" size="18"></i></div>
-                                        <span className="text-xs font-black">info-1500510@edu.mon.bg</span>
-                                    </a>
-                                    <a href="https://csop-lm.eu" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-slate-600 hover:text-teal-600 transition-colors group">
-                                        <div className="bg-slate-50 p-3 rounded-xl group-hover:bg-teal-50"><i data-lucide="globe" size="18"></i></div>
-                                        <span className="text-xs font-black">csop-lm.eu</span>
-                                    </a>
-                                </div>
+                    <footer className="bg-white border-t border-slate-200 py-10">
+                        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+                            <div className="text-center md:text-left">
+                                <p className="font-black text-slate-900 uppercase text-xs">ЦСОП "Леда Милева"</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Всички права запазени © 2024</p>
                             </div>
-                            <div className="border-t border-slate-100 pt-8 text-center">
-                                <p className="text-[10px] font-black uppercase text-slate-300 tracking-[0.2em]">
-                                    © {new Date().getFullYear()} ЦСОП "Леда Милева". Всички права запазени.
-                                </p>
+                            <div className="flex gap-4">
+                                <a href="mailto:info-1500510@edu.mon.bg" className="bg-slate-50 p-3 rounded-xl text-slate-400 hover:text-teal-600 transition-colors"><Icon name="mail" size={18} /></a>
+                                <a href="https://csop-lm.eu" target="_blank" className="bg-slate-50 p-3 rounded-xl text-slate-400 hover:text-teal-600 transition-colors"><Icon name="globe" size={18} /></a>
                             </div>
                         </div>
                     </footer>
 
-                    {/* MODALS */}
-                    {isPasswordModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100]">
-                            <div className="bg-white p-12 rounded-[50px] w-full max-w-sm shadow-2xl">
-                                <h2 className="text-2xl font-black uppercase mb-8 text-slate-900 tracking-tighter text-center">Вход за учители</h2>
-                                <form onSubmit={handleLogin} className="space-y-5">
-                                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full p-6 bg-slate-50 rounded-3xl outline-none text-center text-3xl font-black border border-slate-100" placeholder="••••" />
-                                    <button type="submit" className="w-full py-6 bg-slate-900 text-white rounded-[30px] font-black uppercase text-xs">Влез</button>
-                                    <button type="button" onClick={closeAllModals} className="w-full text-[10px] font-black uppercase text-slate-400 pt-4 text-center">Отказ</button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {isSubfolderModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100]">
-                            <div className="bg-white p-10 rounded-[50px] w-full max-w-sm shadow-2xl">
-                                <h2 className="text-2xl font-black uppercase mb-8 text-center">{editingId ? 'Редакция' : 'Нов раздел'}</h2>
-                                <form onSubmit={handleSaveSubfolder} className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {Object.values(MAIN_CATEGORIES).map(c => (
-                                            <button key={c.id} type="button" onClick={() => setFormData({...formData, subfolderParent: c.id})} className={`p-4 rounded-2xl border-2 text-[10px] font-black uppercase ${formData.subfolderParent === c.id ? 'border-teal-500 text-teal-600 bg-teal-50' : 'border-slate-50 text-slate-300'}`}>{c.name}</button>
-                                        ))}
-                                    </div>
-                                    <input type="text" value={formData.subfolderName} onChange={e => setFormData({...formData, subfolderName: e.target.value})} className="w-full p-5 bg-slate-50 rounded-2xl border border-slate-100 outline-none font-bold" placeholder="Име на раздела..." />
-                                    <button type="submit" className="w-full py-5 bg-teal-600 text-white rounded-3xl font-black uppercase text-xs shadow-lg">Запази</button>
-                                    <button type="button" onClick={closeAllModals} className="w-full text-[10px] font-black uppercase text-slate-400 text-center">Отказ</button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {isResourceModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100]">
-                            <div className="bg-white p-10 rounded-[50px] w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]">
-                                <h2 className="text-2xl font-black uppercase mb-8 text-center">Качване на материал</h2>
-                                <form onSubmit={handleSaveResource} className="space-y-5">
-                                    <p className="text-[10px] font-black uppercase text-slate-400 ml-2">Изберете раздел(и):</p>
-                                    <div className="max-h-40 overflow-y-auto p-3 border rounded-3xl bg-slate-50 space-y-2">
-                                        {subfolders.length > 0 ? subfolders.map(s => (
-                                            <label key={s.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl cursor-pointer border border-transparent hover:border-teal-200">
-                                                <input type="checkbox" checked={formData.resTargetSubs.includes(s.id)} onChange={() => {
-                                                    const current = formData.resTargetSubs;
-                                                    setFormData({...formData, resTargetSubs: current.includes(s.id) ? current.filter(id => id !== s.id) : [...current, s.id]});
-                                                }} className="w-5 h-5 rounded text-teal-600" />
-                                                <span className="text-[10px] font-black uppercase text-slate-700">{s.name} ({MAIN_CATEGORIES[s.parentId].name})</span>
-                                            </label>
-                                        )) : <p className="p-4 text-center text-xs text-slate-300 uppercase font-black">Първо създайте раздел</p>}
-                                    </div>
-                                    <input type="text" placeholder="Заглавие" value={formData.resTitle} onChange={e => setFormData({...formData, resTitle: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold border border-slate-100" />
-                                    <textarea placeholder="Описание" value={formData.resDescription} onChange={e => setFormData({...formData, resDescription: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl outline-none h-20 border border-slate-100"></textarea>
-                                    <input type="text" placeholder="Линк (URL)" value={formData.resUrl} onChange={e => setFormData({...formData, resUrl: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl outline-none text-teal-600 border border-slate-100" />
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button type="button" onClick={() => setFormData({...formData, resType: 'link'})} className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase ${formData.resType === 'link' ? 'border-teal-500 text-teal-600 bg-teal-50' : 'border-slate-50 text-slate-300'}`}>Линк</button>
-                                        <button type="button" onClick={() => setFormData({...formData, resType: 'file'})} className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase ${formData.resType === 'file' ? 'border-teal-500 text-teal-600 bg-teal-50' : 'border-slate-50 text-slate-300'}`}>Файл</button>
-                                    </div>
-                                    <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black uppercase text-xs shadow-xl">Качи в облака</button>
-                                    <button type="button" onClick={closeAllModals} className="w-full text-[10px] font-black uppercase text-slate-400 text-center">Отказ</button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {isSupervisorModalOpen && (
-                        <div className="fixed inset-0 bg-red-900/95 backdrop-blur-xl flex items-center justify-center p-4 z-[110]">
-                            <div className="bg-white p-12 rounded-[50px] w-full max-w-sm shadow-2xl text-center">
-                                <h2 className="text-xl font-black uppercase mb-4 text-red-600">Потвърждение</h2>
-                                <p className="text-xs font-bold text-slate-400 uppercase mb-6">Въведете супервайзерска парола за изтриване</p>
-                                <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full p-6 bg-slate-50 rounded-3xl text-center text-2xl font-black mb-6 border border-slate-100" placeholder="••••" />
-                                <button onClick={handleSupervisorConfirm} className="w-full py-6 bg-red-600 text-white rounded-[30px] font-black uppercase text-xs shadow-xl">Изтрий завинаги</button>
-                                <button onClick={closeAllModals} className="w-full text-[10px] font-black uppercase text-slate-400 pt-4">Отказ</button>
-                            </div>
+                    {passwordModal.open && (
+                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                            <form onSubmit={handleLogin} className="bg-white p-10 rounded-[40px] w-full max-w-sm shadow-2xl space-y-6">
+                                <h3 className="text-xl font-black uppercase text-center text-slate-800">Вход</h3>
+                                <input 
+                                    type="password" 
+                                    autoFocus
+                                    className="w-full bg-slate-50 border border-slate-100 p-5 rounded-2xl outline-none text-center text-2xl font-black tracking-[0.5em]"
+                                    value={passwordModal.value}
+                                    onChange={e => setPasswordModal(p => ({...p, value: e.target.value}))}
+                                    placeholder="••••"
+                                />
+                                <button className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[10px]">Продължи</button>
+                                <button type="button" onClick={() => setPasswordModal({open: false, value: ''})} className="w-full text-[9px] font-black uppercase text-slate-400">Отказ</button>
+                            </form>
                         </div>
                     )}
                 </div>
