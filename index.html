@@ -37,8 +37,19 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script type="text/babel" data-type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
         const { useState, useEffect, useMemo } = React;
+
+        // --- Инициализация на Firebase ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'csop-library-app';
 
         // --- Икони (Inline SVG за стабилност) ---
         const Icons = {
@@ -55,17 +66,9 @@
             Check: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
         };
 
-        // --- Данни ---
-        const initialResources = [
-            { id: 1, title: "Интерактивна игра: Букви и Звуци", category: "Български език", type: "link", format: "game", grade: "1-4", url: "#" },
-            { id: 2, title: "Работен лист: Събиране до 10", category: "Математика", type: "file", format: "pdf", grade: "1-4", url: "#" },
-            { id: 3, title: "Видео урок: Слънчевата система", category: "Човекът и природата", type: "link", format: "video", grade: "5-7", url: "#" },
-            { id: 4, title: "Презентация: Васил Левски", category: "Човекът и обществото", type: "file", format: "ppt", grade: "5-7", url: "#" },
-            { id: 5, title: "Упражнение: Части на речта", category: "Български език", type: "file", format: "docx", grade: "5-7", url: "#" },
-            { id: 6, title: "Развиваща игра: Цветове и форми", category: "Специализирани", type: "link", format: "game", grade: "1-4", url: "#" }
-        ];
-
-        const CATEGORIES = ["Всички", "Български език", "Математика", "Човекът и природата", "Човекът и обществото", "Специализирани"];
+        // --- Константи за Категории и Формати ---
+        const MAIN_CATEGORIES = ["Обучение", "Терапия"];
+        const CATEGORIES_TABS = ["Всички", ...MAIN_CATEGORIES];
         
         const FORMAT_LABELS = { pdf: "PDF Документ", docx: "Word Документ", ppt: "Презентация", video: "Видео Урок", game: "Интерактивна Игра" };
         const FORMAT_COLORS = { 
@@ -78,11 +81,14 @@
 
         function App() {
             // --- Състояния (State) ---
-            const [resources, setResources] = useState(initialResources);
+            const [resources, setResources] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [authUser, setAuthUser] = useState(null);
+
             const [searchQuery, setSearchQuery] = useState("");
             const [selectedCategory, setSelectedCategory] = useState("Всички");
             
-            // Фиктри
+            // Филтри
             const [showFilters, setShowFilters] = useState(false);
             const [filters, setFilters] = useState({
                 grades: { "1-4": false, "5-7": false, "8-10": false, "11-12": false },
@@ -99,8 +105,69 @@
             const [showResourceModal, setShowResourceModal] = useState(false);
             const [editingResource, setEditingResource] = useState(null);
             const [formData, setFormData] = useState({
-                title: "", category: "Български език", type: "file", format: "pdf", grade: "1-4", url: ""
+                title: "", category: "Обучение", type: "file", format: "pdf", grade: "1-4", url: ""
             });
+
+            // --- Ефекти (Firebase & Event Listeners) ---
+
+            // 1. Инициализация на Firebase Auth
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Грешка при автентикация:", error);
+                        setIsLoading(false);
+                    }
+                };
+                initAuth();
+
+                const unsubscribe = onAuthStateChanged(auth, (user) => {
+                    setAuthUser(user);
+                    if(!user) setIsLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // 2. Извличане на данни от Firestore
+            useEffect(() => {
+                if (!authUser) return;
+
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'resources');
+                const unsubscribe = onSnapshot(colRef, (snapshot) => {
+                    const fetchedResources = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    // Сортиране по дата на добавяне (най-новите първи)
+                    fetchedResources.sort((a, b) => b.createdAt - a.createdAt);
+                    
+                    setResources(fetchedResources);
+                    setIsLoading(false);
+                }, (error) => {
+                    console.error("Грешка при извличане на данни:", error);
+                    setIsLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, [authUser]);
+
+            // 3. Поддръжка на Esc бутона за затваряне на модали
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape') {
+                        setShowLoginModal(false);
+                        setShowResourceModal(false);
+                    }
+                };
+                document.addEventListener('keydown', handleKeyDown);
+                return () => document.removeEventListener('keydown', handleKeyDown);
+            }, []);
 
             // --- Логика за филтриране ---
             const filteredResources = useMemo(() => {
@@ -150,24 +217,45 @@
                     setFormData(resource);
                 } else {
                     setEditingResource(null);
-                    setFormData({ title: "", category: "Български език", type: "file", format: "pdf", grade: "1-4", url: "" });
+                    setFormData({ title: "", category: "Обучение", type: "file", format: "pdf", grade: "1-4", url: "" });
                 }
                 setShowResourceModal(true);
             };
 
-            const handleSaveResource = (e) => {
+            const handleSaveResource = async (e) => {
                 e.preventDefault();
-                if (editingResource) {
-                    setResources(resources.map(r => r.id === editingResource.id ? { ...formData, id: r.id } : r));
-                } else {
-                    setResources([{ ...formData, id: Date.now() }, ...resources]);
+                if (!authUser) return;
+
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'resources');
+                
+                try {
+                    if (editingResource) {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'resources', editingResource.id);
+                        await updateDoc(docRef, formData);
+                    } else {
+                        await addDoc(colRef, { 
+                            ...formData, 
+                            createdAt: Date.now() 
+                        });
+                    }
+                    setShowResourceModal(false);
+                } catch (error) {
+                    console.error("Грешка при запазване:", error);
+                    alert("Възникна грешка при запазването на ресурса.");
                 }
-                setShowResourceModal(false);
             };
 
-            const handleDeleteResource = (id) => {
+            const handleDeleteResource = async (id) => {
+                if (!authUser) return;
+
+                // Използваме персонализиран confirm вместо браузърния alert
                 if (window.confirm("Сигурни ли сте, че искате да изтриете този ресурс?")) {
-                    setResources(resources.filter(r => r.id !== id));
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'resources', id);
+                        await deleteDoc(docRef);
+                    } catch (error) {
+                        console.error("Грешка при изтриване:", error);
+                    }
                 }
             };
 
@@ -295,12 +383,12 @@
                         </div>
 
                         {/* КАТЕГОРИИ */}
-                        <div className="flex overflow-x-auto pb-4 mb-8 scrollbar-hide gap-3 animate-slide-up" style={{animationDelay: '0.2s'}}>
-                            {CATEGORIES.map(cat => (
+                        <div className="flex justify-center overflow-x-auto pb-4 mb-8 scrollbar-hide gap-3 animate-slide-up" style={{animationDelay: '0.2s'}}>
+                            {CATEGORIES_TABS.map(cat => (
                                 <button
                                     key={cat}
                                     onClick={() => setSelectedCategory(cat)}
-                                    className={`whitespace-nowrap px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-wide transition-all border-2 ${selectedCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-xl shadow-slate-900/20' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-800'}`}
+                                    className={`whitespace-nowrap px-8 py-3 rounded-2xl font-black text-sm uppercase tracking-wide transition-all border-2 ${selectedCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-xl shadow-slate-900/20' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-800'}`}
                                 >
                                     {cat}
                                 </button>
@@ -308,7 +396,11 @@
                         </div>
 
                         {/* РЕЗУЛТАТИ (Мрежа от ресурси) */}
-                        {filteredResources.length > 0 ? (
+                        {isLoading ? (
+                            <div className="flex justify-center items-center py-20">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-teal-500"></div>
+                            </div>
+                        ) : filteredResources.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up" style={{animationDelay: '0.3s'}}>
                                 {filteredResources.map((res) => (
                                     <div key={res.id} className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:-translate-y-1 transition-all group flex flex-col">
@@ -324,10 +416,13 @@
                                         <h3 className="font-black text-xl text-slate-800 mb-2 leading-tight group-hover:text-teal-600 transition-colors">
                                             {res.title}
                                         </h3>
-                                        <p className="text-slate-500 font-semibold text-sm mb-6 flex-grow">{res.category}</p>
+                                        <p className="text-slate-500 font-semibold text-sm mb-6 flex-grow">
+                                            <span className="inline-block w-2 h-2 rounded-full mr-2 bg-teal-400"></span>
+                                            {res.category}
+                                        </p>
                                         
                                         <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100">
-                                            <a href={res.url} className="flex items-center gap-2 text-slate-900 font-black text-sm hover:text-teal-600 transition-colors bg-slate-50 px-4 py-2 rounded-xl group-hover:bg-teal-50">
+                                            <a href={res.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-slate-900 font-black text-sm hover:text-teal-600 transition-colors bg-slate-50 px-4 py-2 rounded-xl group-hover:bg-teal-50">
                                                 {res.type === 'link' ? <Icons.Link /> : <Icons.FileText />}
                                                 Отвори
                                             </a>
@@ -353,8 +448,14 @@
                                     <Icons.Search />
                                 </div>
                                 <h3 className="text-2xl font-black text-slate-800 mb-2">Няма намерени ресурси</h3>
-                                <p className="text-slate-500 font-bold">Опитайте с други ключови думи или променете филтрите.</p>
-                                <button onClick={() => {setSearchQuery(''); setFilters({grades: {"1-4":false,"5-7":false,"8-10":false,"11-12":false}, formats: {pdf:false,docx:false,ppt:false,video:false,game:false}}); setSelectedCategory('Всички');}} className="mt-6 text-teal-600 font-black uppercase text-sm hover:underline">Изчисти всички филтри</button>
+                                {resources.length === 0 ? (
+                                    <p className="text-slate-500 font-bold">Библиотеката е празна. Влезте като учител, за да добавите първия материал.</p>
+                                ) : (
+                                    <>
+                                        <p className="text-slate-500 font-bold">Опитайте с други ключови думи или променете филтрите.</p>
+                                        <button onClick={() => {setSearchQuery(''); setFilters({grades: {"1-4":false,"5-7":false,"8-10":false,"11-12":false}, formats: {pdf:false,docx:false,ppt:false,video:false,game:false}}); setSelectedCategory('Всички');}} className="mt-6 text-teal-600 font-black uppercase text-sm hover:underline">Изчисти всички филтри</button>
+                                    </>
+                                )}
                             </div>
                         )}
                     </main>
@@ -385,7 +486,7 @@
 
                     {/* МОДАЛ: Вход за учители */}
                     {showLoginModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={(e) => { if(e.target === e.currentTarget) setShowLoginModal(false); }}>
                             <div className="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl animate-pop relative">
                                 <button onClick={() => setShowLoginModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800 bg-slate-100 p-2 rounded-full transition-colors">
                                     <Icons.X />
@@ -394,7 +495,7 @@
                                     <Icons.Lock />
                                 </div>
                                 <h3 className="text-2xl font-black text-slate-900 text-center mb-2">Вход за учители</h3>
-                                <p className="text-slate-500 text-center font-bold text-sm mb-8">Въведете парола за достъп до административния панел.</p>
+                                <p className="text-slate-500 text-center font-bold text-sm mb-8">Въведете парола за достъп до панела.</p>
                                 
                                 <form onSubmit={handleLogin} className="flex flex-col gap-4">
                                     <div>
@@ -411,6 +512,7 @@
                                     <button type="submit" className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-wider hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20">
                                         Влез в системата
                                     </button>
+                                    <p className="text-[10px] text-center text-slate-400 font-bold uppercase mt-2">Затваряне с бутон ESC</p>
                                 </form>
                                 <div className="mt-6 text-center">
                                     <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Тестова парола: admin123</span>
@@ -421,7 +523,7 @@
 
                     {/* МОДАЛ: Добавяне/Редакция на Ресурс */}
                     {showResourceModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in overflow-y-auto" onClick={(e) => { if(e.target === e.currentTarget) setShowResourceModal(false); }}>
                             <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-pop relative my-8">
                                 <button onClick={() => setShowResourceModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-800 bg-slate-100 p-2 rounded-full transition-colors">
                                     <Icons.X />
@@ -438,7 +540,7 @@
                                         <div>
                                             <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Категория</label>
                                             <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm focus:border-teal-500 focus:bg-white">
-                                                {CATEGORIES.filter(c => c !== 'Всички').map(c => <option key={c} value={c}>{c}</option>)}
+                                                {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                             </select>
                                         </div>
                                         <div>
@@ -472,6 +574,7 @@
                                     <button type="submit" className="w-full py-4 mt-4 bg-teal-500 text-white rounded-xl font-black uppercase tracking-wider hover:bg-teal-600 transition-colors shadow-lg shadow-teal-500/30">
                                         {editingResource ? 'Запази промените' : 'Добави в библиотеката'}
                                     </button>
+                                    <p className="text-[10px] text-center text-slate-400 font-bold uppercase mt-2">Затваряне с бутон ESC</p>
                                 </form>
                             </div>
                         </div>
