@@ -16,9 +16,12 @@
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap');
         body { font-family: 'Manrope', sans-serif; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .glass-effect { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
     </style>
 </head>
-<body class="bg-[#F8FAFC]">
+<body class="bg-[#F1F5F9]">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -27,12 +30,12 @@
         function App() {
             const ADMIN_PASSWORD = '1500510';
             const SUPERVISOR_PASSWORD = 'As800224@';
-            const STORAGE_KEY_SUB = 'csop_lib_sub_v3';
-            const STORAGE_KEY_RES = 'csop_lib_res_v3';
+            const STORAGE_KEY_SUB = 'csop_lib_sub_v4';
+            const STORAGE_KEY_RES = 'csop_lib_res_v4';
 
             const MAIN_CATEGORIES = {
-                therapy: { id: 'therapy', name: 'Терапия', icon: 'stethoscope', color: 'from-teal-500 to-emerald-600' },
-                education: { id: 'education', name: 'Обучение', icon: 'graduation-cap', color: 'from-orange-400 to-amber-500' }
+                therapy: { id: 'therapy', name: 'Терапия', icon: 'stethoscope', color: 'from-teal-500 to-emerald-600', accent: 'teal', bg: 'bg-teal-500' },
+                education: { id: 'education', name: 'Обучение', icon: 'graduation-cap', color: 'from-orange-400 to-amber-500', accent: 'orange', bg: 'bg-orange-500' }
             };
 
             const [subfolders, setSubfolders] = useState(() => {
@@ -52,14 +55,20 @@
             const [activeCategory, setActiveCategory] = useState(null);
             const [activeSubfolder, setActiveSubfolder] = useState(null);
             const [role, setRole] = useState(null);
+            
             const [searchQuery, setSearchQuery] = useState('');
+            const [searchFilters, setSearchFilters] = useState({ therapy: true, education: true });
+            
             const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
             const [passwordInput, setPasswordInput] = useState('');
             const [isSubfolderModalOpen, setIsSubfolderModalOpen] = useState(false);
             const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+            const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
+            const [supervisorAction, setSupervisorAction] = useState(null);
+            
             const [formData, setFormData] = useState({
                 subfolderName: '', subfolderParent: 'therapy',
-                resTitle: '', resDescription: '', resUrl: '', resType: 'link'
+                resTitle: '', resDescription: '', resUrl: '', resType: 'link', resTargetSub: ''
             });
 
             useEffect(() => { localStorage.setItem(STORAGE_KEY_SUB, JSON.stringify(subfolders)); }, [subfolders]);
@@ -69,6 +78,26 @@
             const getSubfolderCount = (catId) => subfolders.filter(s => s.parentId === catId).length;
             const getResourceCount = (subId) => resources.filter(r => r.subfolderIds && r.subfolderIds.includes(subId)).length;
 
+            const filteredResults = useMemo(() => {
+                if (!searchQuery.trim()) return [];
+                
+                return resources.filter(res => {
+                    const matchesText = res.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                      res.description.toLowerCase().includes(searchQuery.toLowerCase());
+                    const parentSub = subfolders.find(s => res.subfolderIds.includes(s.id));
+                    const categoryId = parentSub ? parentSub.parentId : null;
+                    return matchesText && categoryId && searchFilters[categoryId];
+                }).map(res => {
+                    const parentSub = subfolders.find(s => res.subfolderIds.includes(s.id));
+                    return {
+                        ...res,
+                        subfolderName: parentSub ? parentSub.name : 'Без раздел',
+                        categoryName: parentSub ? MAIN_CATEGORIES[parentSub.parentId].name : 'Други',
+                        categoryColor: parentSub ? (parentSub.parentId === 'therapy' ? 'text-teal-600 bg-teal-50 border-teal-100' : 'text-orange-600 bg-orange-50 border-orange-100') : 'bg-slate-50 border-slate-100'
+                    };
+                });
+            }, [searchQuery, searchFilters, resources, subfolders]);
+
             const handleLogin = (e) => {
                 e.preventDefault();
                 if (passwordInput === ADMIN_PASSWORD) setRole('admin');
@@ -76,6 +105,30 @@
                 else return alert("Грешна парола!");
                 setIsPasswordModalOpen(false);
                 setPasswordInput('');
+            };
+
+            // Функция за потвърждение с парола на супервайзер
+            const confirmDelete = (action) => {
+                if (role === 'supervisor') {
+                    // Ако вече е супервайзер, трие директно
+                    action();
+                } else {
+                    // Ако е администратор, иска супервайзерска парола
+                    setSupervisorAction(() => action);
+                    setIsSupervisorModalOpen(true);
+                }
+            };
+
+            const handleSupervisorConfirm = (e) => {
+                e.preventDefault();
+                if (passwordInput === SUPERVISOR_PASSWORD) {
+                    if (supervisorAction) supervisorAction();
+                    setIsSupervisorModalOpen(false);
+                    setSupervisorAction(null);
+                    setPasswordInput('');
+                } else {
+                    alert("Грешна супервайзерска парола!");
+                }
             };
 
             const handleSaveSubfolder = (e) => {
@@ -89,156 +142,345 @@
 
             const handleSaveResource = (e) => {
                 e.preventDefault();
-                if (!formData.resTitle.trim()) return;
+                const targetId = activeSubfolder ? activeSubfolder.id : formData.resTargetSub;
+                if (!formData.resTitle.trim() || !targetId) return alert("Моля попълнете заглавие и изберете раздел!");
+                
                 const newRes = {
                     id: 'r' + Date.now(),
                     title: formData.resTitle,
                     description: formData.resDescription,
                     url: formData.resUrl,
                     type: formData.resType,
-                    subfolderIds: [activeSubfolder.id]
+                    subfolderIds: [targetId]
                 };
                 setResources([...resources, newRes]);
                 setIsResourceModalOpen(false);
-                setFormData({...formData, resTitle: '', resDescription: '', resUrl: ''});
-            };
-
-            const handleDeleteSubfolder = (id, e) => {
-                e.stopPropagation();
-                if (window.confirm("Изтриване на раздела и всички материали в него?")) {
-                    setSubfolders(subfolders.filter(s => s.id !== id));
-                    setResources(resources.filter(r => !r.subfolderIds.includes(id)));
-                }
+                setFormData({...formData, resTitle: '', resDescription: '', resUrl: '', resTargetSub: ''});
             };
 
             return (
                 <div className="flex flex-col min-h-screen">
-                    <header className="bg-white border-b-4 border-teal-600 p-4 sticky top-0 z-50">
-                        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 cursor-pointer" onClick={() => {setCurrentView('home'); setActiveCategory(null);}}>
-                                <div className="bg-teal-600 p-2 rounded-xl text-white"><i data-lucide="book-open"></i></div>
-                                <div>
-                                    <h1 className="text-sm md:text-lg font-black uppercase tracking-tight text-slate-900">Дигитална библиотека</h1>
-                                    <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">ЦСОП "Леда Милева", гр. Долни Дъбник</p>
+                    {/* ХЕДЪР */}
+                    <header className="bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 p-4 sticky top-0 z-50 shadow-xl border-b border-white/10">
+                        <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-4 cursor-pointer group" onClick={() => {setCurrentView('home'); setActiveCategory(null); setSearchQuery('');}}>
+                                <div className="bg-white p-3 rounded-2xl text-teal-600 shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                                    <i data-lucide="book-open" size="28"></i>
+                                </div>
+                                <div className="text-white">
+                                    <h1 className="text-lg md:text-xl font-black uppercase tracking-tight leading-none">Дигитална библиотека</h1>
+                                    <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] mt-1 text-teal-100">ЦСОП "Леда Милева", Долни Дъбник</p>
                                 </div>
                             </div>
-                            <button onClick={() => role ? setRole(null) : setIsPasswordModalOpen(true)} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-600 transition-colors">
+
+                            {/* ТЪРСАЧКА */}
+                            <div className="flex flex-col gap-2 w-full max-w-lg">
+                                <div className="relative group">
+                                    <i data-lucide="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 group-focus-within:text-white transition-colors" size="18"></i>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Търсене по име или тема..." 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-3 bg-white/10 backdrop-blur-md rounded-2xl outline-none border border-white/20 focus:border-white/50 text-white placeholder-white/60 font-bold text-sm transition-all"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-4 px-2">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input type="checkbox" checked={searchFilters.therapy} onChange={() => setSearchFilters(f => ({...f, therapy: !f.therapy}))} className="w-4 h-4 rounded border-none bg-white/20 text-teal-500 focus:ring-teal-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-50 group-hover:text-white transition-colors">Терапия</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input type="checkbox" checked={searchFilters.education} onChange={() => setSearchFilters(f => ({...f, education: !f.education}))} className="w-4 h-4 rounded border-none bg-white/20 text-orange-500 focus:ring-orange-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-50 group-hover:text-white transition-colors">Обучение</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button onClick={() => role ? setRole(null) : setIsPasswordModalOpen(true)} className="px-6 py-3 bg-white text-teal-700 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all transform active:scale-95 shadow-xl">
                                 {role ? `Изход (${role})` : 'Вход за учители'}
                             </button>
                         </div>
                     </header>
 
-                    <main className="flex-grow max-w-5xl mx-auto w-full p-4 py-8">
-                        {currentView === 'home' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                                {Object.values(MAIN_CATEGORIES).map(cat => (
-                                    <div key={cat.id} onClick={() => {setActiveCategory(cat); setCurrentView('category');}} className={`h-48 rounded-[32px] bg-gradient-to-br ${cat.color} p-8 text-white cursor-pointer shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between relative overflow-hidden group`}>
-                                        <div className="absolute right-0 bottom-0 opacity-20 group-hover:scale-110 transition-transform"><i data-lucide={cat.icon} style={{width: '120px', height: '120px'}}></i></div>
-                                        <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center backdrop-blur-md"><i data-lucide={cat.icon}></i></div>
-                                        <div>
-                                            <h2 className="text-3xl font-black uppercase tracking-tighter">{cat.name}</h2>
-                                            <p className="text-[10px] font-bold uppercase opacity-80 tracking-widest">{getSubfolderCount(cat.id)} раздела</p>
-                                        </div>
+                    <main className="flex-grow max-w-6xl mx-auto w-full p-4 py-8">
+                        {/* РЕЗУЛТАТИ ОТ ТЪРСЕНЕ */}
+                        {searchQuery.trim() !== '' && (
+                            <div className="animate-fade-in space-y-4 mb-16">
+                                <div className="flex justify-between items-end border-b-2 border-slate-200 pb-4">
+                                    <div>
+                                        <h2 className="text-2xl font-black uppercase text-slate-900 tracking-tighter flex items-center gap-2">
+                                            <i data-lucide="layers" className="text-teal-600" size="24"></i>
+                                            Намерени материали
+                                        </h2>
+                                        <p className="text-xs font-bold text-slate-400 uppercase mt-1">Резултати за: "{searchQuery}" ({filteredResults.length})</p>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {currentView === 'category' && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <button onClick={() => setCurrentView('home')} className="col-span-full text-xs font-black text-teal-600 uppercase flex items-center gap-2 mb-4"><i data-lucide="arrow-left" size="14"></i> Назад към началото</button>
-                                {subfolders.filter(s => s.parentId === activeCategory.id).map(folder => (
-                                    <div key={folder.id} onClick={() => {setActiveSubfolder(folder); setCurrentView('subfolder');}} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:border-teal-500 transition-all cursor-pointer group">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="bg-teal-50 p-3 rounded-xl text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-all"><i data-lucide="folder-open"></i></div>
-                                            {role === 'admin' && <button onClick={(e) => handleDeleteSubfolder(folder.id, e)} className="text-slate-200 hover:text-red-500 transition-colors"><i data-lucide="trash-2" size="18"></i></button>}
-                                        </div>
-                                        <h3 className="font-black uppercase text-sm text-slate-800">{folder.name}</h3>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{getResourceCount(folder.id)} материала</p>
+                                    <button onClick={() => setSearchQuery('')} className="bg-red-50 text-red-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all shadow-sm">Изчисти</button>
+                                </div>
+                                {filteredResults.length === 0 ? (
+                                    <div className="text-center py-24 bg-white rounded-[40px] shadow-sm border border-slate-100 text-slate-400">
+                                        <i data-lucide="search-x" className="mx-auto mb-4 opacity-10" size="64"></i>
+                                        <p className="text-xs font-black uppercase tracking-widest">Няма открити материали по тези критерии</p>
                                     </div>
-                                ))}
-                                {role === 'admin' && (
-                                    <button onClick={() => setIsSubfolderModalOpen(true)} className="p-6 border-2 border-dashed border-slate-200 rounded-[24px] text-slate-400 font-black uppercase text-[10px] hover:border-teal-500 hover:text-teal-600 transition-all flex flex-col items-center justify-center gap-2">
-                                        <i data-lucide="plus"></i> Нов раздел
-                                    </button>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {filteredResults.map(res => (
+                                            <div key={res.id} className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col justify-between group hover:shadow-2xl hover:border-teal-300 transition-all duration-300 transform hover:-translate-y-1">
+                                                <div className="flex items-start gap-4 mb-4">
+                                                    <div className="p-4 bg-slate-50 rounded-2xl text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600 transition-colors shadow-inner"><i data-lucide={res.type === 'file' ? 'file-text' : 'link'}></i></div>
+                                                    <div className="flex-grow">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${res.categoryColor}`}>
+                                                                {res.categoryName}
+                                                            </span>
+                                                            <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-slate-100 text-slate-500 border border-slate-200">
+                                                                Раздел: {res.subfolderName}
+                                                            </span>
+                                                        </div>
+                                                        <h4 className="font-black text-base text-slate-800 leading-tight group-hover:text-teal-700 transition-colors">{res.title}</h4>
+                                                        <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed line-clamp-2">{res.description}</p>
+                                                    </div>
+                                                </div>
+                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-teal-600 transition-all text-center shadow-lg">Отвори материала</a>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         )}
 
-                        {currentView === 'subfolder' && (
-                            <div className="space-y-4">
-                                <button onClick={() => setCurrentView('category')} className="text-xs font-black text-teal-600 uppercase flex items-center gap-2 mb-6"><i data-lucide="arrow-left" size="14"></i> Назад към {activeCategory.name}</button>
-                                <div className="flex justify-between items-center mb-8">
-                                    <h2 className="text-2xl font-black uppercase text-slate-900 tracking-tight">{activeSubfolder.name}</h2>
-                                    {role && <button onClick={() => setIsResourceModalOpen(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-900 transition-all">+ Добави материал</button>}
+                        {/* ПАНЕЛ ЗА АДМИНИСТРАЦИЯ */}
+                        {role && searchQuery === '' && (
+                            <div className="bg-slate-900 p-8 rounded-[40px] mb-12 animate-fade-in shadow-2xl relative overflow-hidden group">
+                                <div className="absolute right-[-20px] top-[-20px] text-white/5 rotate-12 transition-transform group-hover:scale-110"><i data-lucide="shield-check" style={{width: '200px', height: '200px'}}></i></div>
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="bg-teal-500 p-2 rounded-xl text-white"><i data-lucide="settings" size="18"></i></div>
+                                        <h3 className="text-xs font-black uppercase text-teal-400 tracking-widest">Административен контрол</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <button onClick={() => setIsSubfolderModalOpen(true)} className="flex items-center justify-center gap-3 p-6 bg-white/5 border border-white/10 text-white rounded-3xl font-black uppercase text-xs hover:bg-white hover:text-slate-900 transition-all shadow-lg">
+                                            <i data-lucide="folder-plus"></i> Нов раздел
+                                        </button>
+                                        <button onClick={() => setIsResourceModalOpen(true)} className="flex items-center justify-center gap-3 p-6 bg-teal-600 text-white rounded-3xl font-black uppercase text-xs hover:bg-teal-500 transition-all shadow-lg shadow-teal-600/20">
+                                            <i data-lucide="file-plus"></i> Качи ресурс
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="grid gap-3">
-                                    {resources.filter(r => r.subfolderIds.includes(activeSubfolder.id)).length === 0 && (
-                                        <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400 text-xs font-bold uppercase">Няма добавени материали в този раздел</div>
-                                    )}
-                                    {resources.filter(r => r.subfolderIds.includes(activeSubfolder.id)).map(res => (
-                                        <div key={res.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all">
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-3 bg-slate-50 rounded-lg text-slate-400"><i data-lucide={res.type === 'file' ? 'file-text' : 'link'}></i></div>
-                                                <div>
-                                                    <h4 className="font-bold text-sm text-slate-800">{res.title}</h4>
-                                                    <p className="text-[10px] text-slate-400 font-medium">{res.description}</p>
+                            </div>
+                        )}
+
+                        {/* НАЧАЛНИ КАТЕГОРИИ */}
+                        {currentView === 'home' && searchQuery === '' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-16 animate-fade-in">
+                                {Object.values(MAIN_CATEGORIES).map(cat => (
+                                    <div key={cat.id} onClick={() => {setActiveCategory(cat); setCurrentView('category');}} className={`h-64 rounded-[50px] bg-gradient-to-br ${cat.color} p-12 text-white cursor-pointer shadow-2xl hover:scale-[1.02] transition-all flex flex-col justify-between relative overflow-hidden group active:scale-95 border-b-8 border-black/20`}>
+                                        <div className="absolute right-[-30px] bottom-[-30px] opacity-10 group-hover:scale-110 group-hover:rotate-12 transition-all duration-700"><i data-lucide={cat.icon} style={{width: '240px', height: '240px'}}></i></div>
+                                        <div className="bg-white/20 w-16 h-16 rounded-3xl flex items-center justify-center backdrop-blur-xl border border-white/30 shadow-inner"><i data-lucide={cat.icon} size="32"></i></div>
+                                        <div>
+                                            <h2 className="text-5xl font-black uppercase tracking-tighter leading-none">{cat.name}</h2>
+                                            <p className="text-[11px] font-black uppercase opacity-90 tracking-[0.3em] mt-3 ml-1 flex items-center gap-2">
+                                                <span className="w-8 h-1 bg-white rounded-full"></span>
+                                                {getSubfolderCount(cat.id)} раздела
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* ИЗГЛЕД КАТЕГОРИЯ */}
+                        {currentView === 'category' && searchQuery === '' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                                <button onClick={() => setCurrentView('home')} className="col-span-full text-xs font-black text-slate-500 uppercase flex items-center gap-2 mb-8 hover:text-teal-600 transition-colors w-fit"><i data-lucide="arrow-left" size="18"></i> Обратно в началото</button>
+                                {subfolders.filter(s => s.parentId === activeCategory.id).map(folder => (
+                                    <div key={folder.id} onClick={() => {setActiveSubfolder(folder); setCurrentView('subfolder');}} className="bg-white p-8 rounded-[40px] border-b-4 border-slate-200 shadow-xl hover:shadow-2xl hover:border-teal-500 transition-all cursor-pointer group relative overflow-hidden">
+                                        <div className="flex justify-between items-start mb-8">
+                                            <div className="bg-slate-100 p-5 rounded-3xl text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600 transition-all shadow-inner"><i data-lucide="folder-closed" size="28"></i></div>
+                                            {role && <button onClick={(e) => {e.stopPropagation(); confirmDelete(() => setSubfolders(subfolders.filter(s => s.id !== folder.id)))} } className="text-slate-300 hover:text-red-500 p-2 transition-colors"><i data-lucide="trash-2" size="20"></i></button>}
+                                        </div>
+                                        <h3 className="font-black uppercase text-lg text-slate-800 tracking-tight leading-tight group-hover:text-teal-700">{folder.name}</h3>
+                                        <div className="flex items-center justify-between mt-4">
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{getResourceCount(folder.id)} материала</p>
+                                            <div className={`w-8 h-2 rounded-full ${activeCategory.bg} opacity-20`}></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* ИЗГЛЕД ПОДПАПКА */}
+                        {currentView === 'subfolder' && searchQuery === '' && (
+                            <div className="animate-fade-in space-y-6">
+                                <button onClick={() => setCurrentView('category')} className="text-xs font-black text-slate-500 uppercase flex items-center gap-2 mb-6 hover:text-teal-600 transition-colors w-fit"><i data-lucide="arrow-left" size="18"></i> Назад към {activeCategory.name}</button>
+                                <div className="bg-white p-10 rounded-[50px] shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6 border-l-[12px] border-l-teal-600">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase text-white ${activeCategory.bg}`}>{activeCategory.name}</span>
+                                        </div>
+                                        <h2 className="text-4xl font-black uppercase text-slate-900 tracking-tighter leading-tight">{activeSubfolder.name}</h2>
+                                    </div>
+                                    {role && <button onClick={() => setIsResourceModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-3xl text-xs font-black uppercase hover:bg-teal-600 transition-all shadow-xl shadow-slate-900/10">+ Нов материал</button>}
+                                </div>
+                                <div className="grid gap-4 mt-10">
+                                    {resources.filter(r => r.subfolderIds.includes(activeSubfolder.id)).length === 0 ? (
+                                        <div className="text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-200 text-slate-300 italic font-bold">Няма добавени материали в този раздел</div>
+                                    ) : (
+                                        resources.filter(r => r.subfolderIds.includes(activeSubfolder.id)).map(res => (
+                                            <div key={res.id} className="bg-white p-6 rounded-[35px] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group hover:shadow-2xl transition-all duration-300">
+                                                <div className="flex items-center gap-6">
+                                                    <div className="p-5 bg-slate-50 rounded-2xl text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-600 transition-colors shadow-inner"><i data-lucide={res.type === 'file' ? 'file-text' : 'link'} size="28"></i></div>
+                                                    <div>
+                                                        <h4 className="font-black text-lg text-slate-800 tracking-tight leading-tight group-hover:text-teal-700 transition-colors">{res.title}</h4>
+                                                        <p className="text-sm text-slate-400 font-medium mt-1">{res.description}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    {role && <button onClick={() => confirmDelete(() => setResources(resources.filter(r => r.id !== res.id)))} className="text-slate-200 hover:text-red-500 p-2"><i data-lucide="trash-2" size="20"></i></button>}
+                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="bg-teal-600 text-white px-10 py-4 rounded-2xl text-xs font-black uppercase hover:bg-slate-900 transition-all text-center shadow-lg shadow-teal-600/20">Отвори</a>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                {role === 'admin' && <button onClick={(e) => {e.stopPropagation(); setResources(resources.filter(r => r.id !== res.id))}} className="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" size="16"></i></button>}
-                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="bg-slate-900 text-white p-2 px-4 rounded-lg text-[10px] font-black uppercase hover:bg-teal-600 transition-colors">Отвори</a>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         )}
                     </main>
 
-                    {/* Парола Модал */}
+                    {/* ФУТЕР */}
+                    <footer className="bg-slate-900 text-white mt-20">
+                        <div className="bg-gradient-to-r from-teal-600 to-emerald-600 h-2 w-full"></div>
+                        <div className="max-w-6xl mx-auto p-12 lg:p-16">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-start">
+                                {/* Секция 1: Инфо */}
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-white p-2 rounded-xl text-teal-600"><i data-lucide="book-open" size="20"></i></div>
+                                        <h4 className="text-lg font-black uppercase tracking-tighter">Дигитална библиотека</h4>
+                                    </div>
+                                    <div className="pt-4">
+                                        <p className="text-[10px] font-black uppercase text-teal-400 tracking-[0.2em]">ЦСОП "Леда Милева" © 2024</p>
+                                        <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">гр. Долни Дъбник</p>
+                                    </div>
+                                </div>
+
+                                {/* Секция 2: Контакти */}
+                                <div className="space-y-6">
+                                    <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-white/40 mb-4">Връзка с нас</h5>
+                                    <div className="space-y-4">
+                                        <a href="mailto:info-1500510@edu.mon.bg" className="flex items-center gap-4 group">
+                                            <div className="bg-white/5 p-3 rounded-2xl text-teal-400 group-hover:bg-teal-600 group-hover:text-white transition-all"><i data-lucide="mail" size="18"></i></div>
+                                            <span className="text-xs font-black text-slate-300 group-hover:text-white transition-colors">info-1500510@edu.mon.bg</span>
+                                        </a>
+                                        <a href="https://www.facebook.com/ledamileva" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 group">
+                                            <div className="bg-white/5 p-3 rounded-2xl text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all"><i data-lucide="facebook" size="18"></i></div>
+                                            <span className="text-xs font-black text-slate-300 group-hover:text-white transition-colors">Facebook страница</span>
+                                        </a>
+                                    </div>
+                                </div>
+
+                                {/* Секция 3: Линк към уебсайт */}
+                                <div className="bg-white/5 p-8 rounded-[40px] border border-white/10 space-y-4">
+                                    <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-teal-400">Официален уебсайт</h5>
+                                    <p className="text-xs text-slate-400 font-bold leading-relaxed uppercase tracking-wider">Посетете основния сайт на ЦСОП "Леда Милева" за актуални новини.</p>
+                                    <a href="https://csop-lm.eu/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-teal-600 p-4 rounded-2xl group hover:bg-white transition-all">
+                                        <span className="text-[10px] font-black uppercase text-white group-hover:text-slate-900 transition-colors">Към csop-lm.eu</span>
+                                        <i data-lucide="external-link" size="16" className="text-white group-hover:text-slate-900 transition-colors"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </footer>
+
+                    {/* МОДАЛИ */}
                     {isPasswordModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-                            <div className="bg-white p-8 rounded-[32px] w-full max-w-xs shadow-2xl">
-                                <h2 className="text-lg font-black uppercase mb-4 text-center tracking-tighter">Вход за администрация</h2>
-                                <form onSubmit={handleLogin} className="space-y-4">
-                                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-teal-500 text-center text-xl font-bold" placeholder="••••••" autoFocus />
-                                    <button type="submit" className="w-full py-4 bg-teal-600 text-white rounded-xl font-black uppercase text-xs shadow-lg shadow-teal-600/20">Влез</button>
-                                    <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Отказ</button>
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100] animate-fade-in">
+                            <div className="bg-white p-12 rounded-[50px] w-full max-w-sm shadow-2xl text-center border-t-8 border-teal-600">
+                                <div className="bg-slate-100 w-20 h-20 rounded-[30px] flex items-center justify-center text-teal-600 mx-auto mb-8 shadow-inner"><i data-lucide="lock" size="36"></i></div>
+                                <h2 className="text-2xl font-black uppercase mb-8 text-slate-900 tracking-tighter">Вход за учители</h2>
+                                <form onSubmit={handleLogin} className="space-y-5">
+                                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full p-6 bg-slate-50 rounded-3xl outline-none focus:ring-4 ring-teal-500/10 text-center text-3xl font-black tracking-[0.5em] border border-slate-100" placeholder="••••" autoFocus />
+                                    <button type="submit" className="w-full py-6 bg-slate-900 text-white rounded-[30px] font-black uppercase text-xs shadow-2xl hover:bg-teal-600 transition-all transform active:scale-95">Потвърди</button>
+                                    <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400 pt-4 hover:text-red-500 transition-colors">Отказ</button>
                                 </form>
                             </div>
                         </div>
                     )}
 
-                    {/* Модал за нов раздел */}
+                    {/* МОДАЛ ЗА СУПЕРВАЙЗЕР (ПРИ ТРИЕНЕ) */}
+                    {isSupervisorModalOpen && (
+                        <div className="fixed inset-0 bg-red-900/95 backdrop-blur-2xl flex items-center justify-center p-4 z-[110] animate-fade-in">
+                            <div className="bg-white p-12 rounded-[50px] w-full max-w-sm shadow-2xl text-center border-t-8 border-red-600">
+                                <div className="bg-red-50 w-20 h-20 rounded-[30px] flex items-center justify-center text-red-600 mx-auto mb-8 shadow-inner"><i data-lucide="shield-alert" size="36"></i></div>
+                                <h2 className="text-xl font-black uppercase mb-4 text-slate-900 tracking-tighter">Внимание!</h2>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase mb-8 leading-relaxed">За изтриване е необходима супервайзерска парола</p>
+                                <form onSubmit={handleSupervisorConfirm} className="space-y-5">
+                                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full p-6 bg-slate-50 rounded-3xl outline-none focus:ring-4 ring-red-500/10 text-center text-2xl font-black tracking-[0.4em] border border-slate-100" placeholder="••••" autoFocus />
+                                    <button type="submit" className="w-full py-6 bg-red-600 text-white rounded-[30px] font-black uppercase text-xs shadow-2xl hover:bg-red-700 transition-all transform active:scale-95">Изтрий окончателно</button>
+                                    <button type="button" onClick={() => {setIsSupervisorModalOpen(false); setSupervisorAction(null); setPasswordInput('');}} className="w-full text-[10px] font-black uppercase text-slate-400 pt-4">Отказ</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* МОДАЛ ЗА НОВ РАЗДЕЛ */}
                     {isSubfolderModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-                            <div className="bg-white p-8 rounded-[32px] w-full max-w-sm shadow-2xl">
-                                <h2 className="text-lg font-black uppercase mb-6 text-slate-900 tracking-tight text-center">Нов раздел в {activeCategory.name}</h2>
-                                <form onSubmit={handleSaveSubfolder} className="space-y-4">
-                                    <input type="text" value={formData.subfolderName} onChange={e => setFormData({...formData, subfolderName: e.target.value})} className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-teal-500 font-bold" placeholder="Име на раздела" autoFocus />
-                                    <button type="submit" className="w-full py-4 bg-teal-600 text-white rounded-xl font-black uppercase text-xs">Създай</button>
-                                    <button type="button" onClick={() => setIsSubfolderModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400">Отказ</button>
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100] animate-fade-in">
+                            <div className="bg-white p-10 rounded-[50px] w-full max-w-sm shadow-2xl relative overflow-hidden">
+                                <h2 className="text-2xl font-black uppercase mb-8 text-slate-900 tracking-tighter text-center">Нов раздел</h2>
+                                <form onSubmit={handleSaveSubfolder} className="space-y-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 mb-3 block tracking-widest">Категория</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {Object.values(MAIN_CATEGORIES).map(c => (
+                                                <button key={c.id} type="button" onClick={() => setFormData({...formData, subfolderParent: c.id})} className={`p-4 rounded-2xl border-2 font-black uppercase text-[10px] transition-all ${formData.subfolderParent === c.id ? 'border-teal-500 bg-teal-50 text-teal-600' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}>{c.name}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 mb-3 block tracking-widest">Име на раздела</label>
+                                        <input type="text" value={formData.subfolderName} onChange={e => setFormData({...formData, subfolderName: e.target.value})} className="w-full p-5 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-4 ring-teal-500/10 font-bold" placeholder="напр. Математика..." autoFocus />
+                                    </div>
+                                    <button type="submit" className="w-full py-5 bg-teal-600 text-white rounded-3xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Създай</button>
+                                    <button type="button" onClick={() => setIsSubfolderModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400 text-center">Затвори</button>
                                 </form>
                             </div>
                         </div>
                     )}
 
-                    {/* Модал за нов ресурс */}
+                    {/* МОДАЛ ЗА НОВ РЕСУРС */}
                     {isResourceModalOpen && (
-                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-                            <div className="bg-white p-8 rounded-[32px] w-full max-w-md shadow-2xl">
-                                <h2 className="text-lg font-black uppercase mb-6 text-slate-900 tracking-tight text-center text-teal-600">Добавяне на материал</h2>
-                                <form onSubmit={handleSaveResource} className="space-y-4">
-                                    <input type="text" value={formData.resTitle} onChange={e => setFormData({...formData, resTitle: e.target.value})} className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-teal-500 font-bold" placeholder="Заглавие" />
-                                    <input type="text" value={formData.resDescription} onChange={e => setFormData({...formData, resDescription: e.target.value})} className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-teal-500 text-sm font-medium" placeholder="Кратко описание" />
-                                    <input type="text" value={formData.resUrl} onChange={e => setFormData({...formData, resUrl: e.target.value})} className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-teal-500 text-sm font-medium" placeholder="URL адрес (линк)" />
-                                    <select value={formData.resType} onChange={e => setFormData({...formData, resType: e.target.value})} className="w-full p-4 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-teal-500 text-xs font-black uppercase">
-                                        <option value="link">Интернет линк</option>
-                                        <option value="file">Файл / Документ</option>
-                                    </select>
-                                    <button type="submit" className="w-full py-4 bg-teal-600 text-white rounded-xl font-black uppercase text-xs">Запази</button>
-                                    <button type="button" onClick={() => setIsResourceModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400">Отказ</button>
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100] animate-fade-in">
+                            <div className="bg-white p-10 rounded-[50px] w-full max-w-md shadow-2xl relative overflow-hidden overflow-y-auto max-h-[90vh] scrollbar-hide">
+                                <h2 className="text-2xl font-black uppercase mb-8 text-slate-900 tracking-tighter text-center">Качване на материал</h2>
+                                <form onSubmit={handleSaveResource} className="space-y-5">
+                                    {!activeSubfolder && (
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Раздел</label>
+                                            <select value={formData.resTargetSub} onChange={e => setFormData({...formData, resTargetSub: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none font-bold text-xs">
+                                                <option value="">-- Изберете --</option>
+                                                {subfolders.map(s => <option key={s.id} value={s.id}>{s.name} ({MAIN_CATEGORIES[s.parentId].name})</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Заглавие</label>
+                                        <input type="text" value={formData.resTitle} onChange={e => setFormData({...formData, resTitle: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none font-bold" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Кратко описание</label>
+                                        <textarea value={formData.resDescription} onChange={e => setFormData({...formData, resDescription: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none font-medium h-24 resize-none"></textarea>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">URL / Линк</label>
+                                        <input type="text" value={formData.resUrl} onChange={e => setFormData({...formData, resUrl: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none font-medium text-xs text-blue-500" placeholder="https://..." />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button type="button" onClick={() => setFormData({...formData, resType: 'link'})} className={`p-4 rounded-2xl border-2 font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-all ${formData.resType === 'link' ? 'border-teal-500 bg-teal-50 text-teal-600' : 'border-slate-50 text-slate-300'}`}><i data-lucide="link" size="14"></i> Линк</button>
+                                        <button type="button" onClick={() => setFormData({...formData, resType: 'file'})} className={`p-4 rounded-2xl border-2 font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-all ${formData.resType === 'file' ? 'border-teal-500 bg-teal-50 text-teal-600' : 'border-slate-50 text-slate-300'}`}><i data-lucide="file-text" size="14"></i> Файл</button>
+                                    </div>
+                                    <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all mt-4">Запази</button>
+                                    <button type="button" onClick={() => setIsResourceModalOpen(false)} className="w-full text-[10px] font-black uppercase text-slate-400 text-center">Отказ</button>
                                 </form>
                             </div>
                         </div>
