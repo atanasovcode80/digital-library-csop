@@ -1,0 +1,503 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Plus, Link as LinkIcon, X, ExternalLink, Trash2, Edit3,
+  BookOpen, Lock, Unlock, Search, Info,
+  GraduationCap, Stethoscope, ChevronRight, ArrowLeft, 
+  FileText, FolderOpen, CheckSquare, Square, Globe, Filter,
+  Layers, Database
+} from 'lucide-react';
+
+export default function App() {
+  // --- КОНСТАНТИ ---
+  const ADMIN_PASSWORD = '1500510';
+  const SUPERVISOR_PASSWORD = 'As800224@';
+  const STORAGE_KEY_SUB = 'csop_lib_sub_v3';
+  const STORAGE_KEY_RES = 'csop_lib_res_v3';
+
+  const MAIN_CATEGORIES = {
+    therapy: { id: 'therapy', name: 'Терапия', icon: <Stethoscope />, color: 'from-teal-500 to-emerald-600' },
+    education: { id: 'education', name: 'Обучение', icon: <GraduationCap />, color: 'from-orange-400 to-amber-500' }
+  };
+
+  // --- СЪСТОЯНИЕ ---
+  const [subfolders, setSubfolders] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_SUB);
+    return saved ? JSON.parse(saved) : [
+      { id: 's1', name: 'Логопед', parentId: 'therapy' },
+      { id: 's2', name: 'Психолог', parentId: 'therapy' },
+      { id: 's3', name: 'БЕЛ', parentId: 'education' },
+      { id: 's4', name: 'Математика', parentId: 'education' }
+    ];
+  });
+
+  const [resources, setResources] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_RES);
+    return saved ? JSON.parse(saved) : [
+      { id: 'r1', title: 'Примерни карти', description: 'Демонстрационен ресурс', url: 'https://google.com', type: 'file', subfolderIds: ['s1'] }
+    ];
+  });
+
+  // Синхронизация с LocalStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_SUB, JSON.stringify(subfolders));
+  }, [subfolders]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_RES, JSON.stringify(resources));
+  }, [resources]);
+
+  // Навигация и Търсене
+  const [currentView, setCurrentView] = useState('home');
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [activeSubfolder, setActiveSubfolder] = useState(null);
+  const [role, setRole] = useState(null); 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] = useState(['therapy', 'education']);
+  
+  // Модали
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isSubfolderModalOpen, setIsSubfolderModalOpen] = useState(false);
+  const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [formData, setFormData] = useState({
+    subfolderName: '', subfolderParent: 'therapy',
+    resTitle: '', resDescription: '', resUrl: '', resType: 'link', resSubfolders: []
+  });
+
+  // --- ИЗЧИСЛЕНИЯ (БРОЯЧИ) ---
+  const getSubfolderCount = (catId) => subfolders.filter(s => s.parentId === catId).length;
+  const getResourceCount = (subId) => resources.filter(r => r.subfolderIds.includes(subId)).length;
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return resources.filter(res => {
+      const matchesText = res.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (res.description && res.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      const belongsToFilteredCategory = res.subfolderIds.some(sid => {
+        const folder = subfolders.find(f => f.id === sid);
+        return folder && searchFilters.includes(folder.parentId);
+      });
+      return matchesText && belongsToFilteredCategory;
+    });
+  }, [searchQuery, resources, subfolders, searchFilters]);
+
+  // --- ФУНКЦИИ ИЗТРИВАНЕ (ГАРАНТИРАНО ОБНОВЯВАНЕ) ---
+  
+  const handleDeleteSubfolder = (id, e) => {
+    e.stopPropagation();
+    if (!role) return;
+    if (window.confirm("Изтриване на раздела? Всички връзки към материали в него ще бъдат премахнати.")) {
+      const updatedSubfolders = subfolders.filter(s => s.id !== id);
+      setSubfolders(updatedSubfolders);
+      
+      const updatedResources = resources.map(res => ({
+        ...res,
+        subfolderIds: res.subfolderIds.filter(sid => sid !== id)
+      })).filter(res => res.subfolderIds.length > 0);
+      
+      setResources(updatedResources);
+      if (activeSubfolder?.id === id) setCurrentView('category');
+    }
+  };
+
+  const handleDeleteResource = (id, e) => {
+    e.stopPropagation();
+    if (!role) return;
+    if (window.confirm("Изтриване на този материал?")) {
+      const updatedResources = resources.filter(r => r.id !== id);
+      setResources(updatedResources);
+    }
+  };
+
+  // --- УПРАВЛЕНИЕ ---
+  
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (passwordInput === ADMIN_PASSWORD) setRole('admin');
+    else if (passwordInput === SUPERVISOR_PASSWORD) setRole('supervisor');
+    else return alert("Грешна парола!");
+    setIsPasswordModalOpen(false);
+    setPasswordInput('');
+  };
+
+  const handleSaveSubfolder = (e) => {
+    e.preventDefault();
+    if (!formData.subfolderName.trim()) return;
+    if (editItem) {
+      setSubfolders(prev => prev.map(s => s.id === editItem.id ? {...s, name: formData.subfolderName, parentId: formData.subfolderParent} : s));
+    } else {
+      setSubfolders(prev => [...prev, { id: 's' + Date.now(), name: formData.subfolderName, parentId: formData.subfolderParent }]);
+    }
+    setIsSubfolderModalOpen(false);
+    setEditItem(null);
+  };
+
+  const handleSaveResource = (e) => {
+    e.preventDefault();
+    if (!formData.resTitle.trim() || formData.resSubfolders.length === 0) return;
+    const data = {
+      id: editItem ? editItem.id : 'r' + Date.now(),
+      title: formData.resTitle,
+      description: formData.resDescription,
+      url: formData.resUrl,
+      type: formData.resType,
+      subfolderIds: formData.resSubfolders
+    };
+    if (editItem) setResources(prev => prev.map(r => r.id === editItem.id ? data : r));
+    else setResources(prev => [...prev, data]);
+    setIsResourceModalOpen(false);
+    setEditItem(null);
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-teal-100">
+      {/* HEADER */}
+      <header className="bg-white border-b-4 border-teal-600 sticky top-0 z-50 shadow-sm px-4 py-4">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 cursor-pointer group" onClick={() => {setCurrentView('home'); setActiveCategory(null); setActiveSubfolder(null); setSearchQuery('');}}>
+            <div className="bg-teal-600 p-2.5 rounded-2xl text-white shadow-lg shadow-teal-200 group-hover:scale-110 transition-transform"><BookOpen size={28}/></div>
+            <div className="text-center md:text-left">
+              <h1 className="text-lg md:text-xl font-black text-slate-900 uppercase leading-none tracking-tight">Дигитална библиотека на ЦСОП "Леда Милева"</h1>
+              <p className="text-[10px] md:text-xs font-bold text-teal-600 uppercase tracking-[0.3em] mt-1">гр. Долни Дъбник</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {role && <span className="text-[10px] font-black px-3 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-200 uppercase italic">Режим: {role}</span>}
+            <button onClick={() => role ? setRole(null) : setIsPasswordModalOpen(true)} className="px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest bg-slate-900 text-white hover:bg-teal-600 transition-all shadow-md active:scale-95">
+              {role ? 'Изход' : 'Вход'}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
+        
+        {/* ТЪРСЕНЕ И АДМИН ПАНЕЛ */}
+        {currentView === 'home' && (
+          <div className="mb-12 space-y-6">
+            <div className="bg-white p-8 rounded-[40px] shadow-xl shadow-slate-200/50 border border-slate-100">
+               <div className="relative mb-6">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={24}/>
+                  <input 
+                    type="text" 
+                    placeholder="Търсене на ресурс (по име или описание)..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-14 pr-6 py-5 bg-slate-50 border-2 border-slate-50 focus:border-teal-500 focus:bg-white rounded-[24px] outline-none font-bold text-lg transition-all shadow-inner"
+                  />
+               </div>
+               <div className="flex flex-wrap items-center gap-4">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Filter size={14}/> Търси в области:</span>
+                  {Object.values(MAIN_CATEGORIES).map(cat => (
+                    <button 
+                      key={cat.id} 
+                      onClick={() => setSearchFilters(prev => prev.includes(cat.id) ? prev.filter(f => f !== cat.id) : [...prev, cat.id])}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase transition-all ${searchFilters.includes(cat.id) ? 'bg-teal-600 text-white shadow-lg shadow-teal-100' : 'bg-slate-100 text-slate-400'}`}
+                    >
+                      {searchFilters.includes(cat.id) ? <CheckSquare size={14}/> : <Square size={14}/>}
+                      {cat.name}
+                    </button>
+                  ))}
+               </div>
+            </div>
+
+            {role && (
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => {setEditItem(null); setFormData({...formData, subfolderName: ''}); setIsSubfolderModalOpen(true);}} className="p-6 rounded-[28px] border-2 border-dashed border-slate-200 text-slate-400 font-black uppercase text-[11px] hover:border-teal-500 hover:text-teal-600 transition-all bg-white flex items-center justify-center gap-3"><Plus size={20}/> Нов Раздел</button>
+                <button onClick={() => {setEditItem(null); setFormData({...formData, resTitle: '', resDescription: '', resSubfolders: []}); setIsResourceModalOpen(true);}} className="p-6 rounded-[28px] bg-teal-600 text-white font-black uppercase text-[11px] shadow-xl shadow-teal-100 hover:bg-teal-700 transition-all flex items-center justify-center gap-3"><Plus size={20}/> Нов Материал</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* РЕЗУЛТАТИ ОТ ТЪРСЕНЕ */}
+        {currentView === 'home' && searchQuery.trim() !== '' && (
+          <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center justify-between mb-6 border-b pb-4 border-slate-200">
+               <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Намерени резултати: {searchResults.length}</h2>
+               <button onClick={() => setSearchQuery('')} className="text-[10px] font-black text-teal-600 uppercase">Изчисти</button>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {searchResults.map(res => (
+                <ResourceCard 
+                  key={res.id} 
+                  res={res} 
+                  role={role} 
+                  onEdit={() => { setEditItem(res); setFormData({ resTitle: res.title, resDescription: res.description || '', resUrl: res.url, resType: res.type, resSubfolders: res.subfolderIds }); setIsResourceModalOpen(true); }}
+                  onDelete={(e) => handleDeleteResource(res.id, e)}
+                  showPath={true}
+                  subfolders={subfolders}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* НАВИГАЦИЯ */}
+        {searchQuery === '' && (
+          <nav className="flex items-center gap-2 text-[10px] font-black text-slate-400 mb-8 uppercase tracking-widest overflow-x-auto pb-2 scrollbar-hide">
+            <span className="hover:text-teal-600 cursor-pointer whitespace-nowrap" onClick={() => {setCurrentView('home'); setActiveCategory(null); setActiveSubfolder(null);}}>Библиотека</span>
+            {activeCategory && <><ChevronRight size={12} className="shrink-0 text-slate-300"/><span className="hover:text-teal-600 cursor-pointer whitespace-nowrap" onClick={() => {setCurrentView('category'); setActiveSubfolder(null);}}>{activeCategory.name}</span></>}
+            {activeSubfolder && <><ChevronRight size={12} className="shrink-0 text-slate-300"/><span className="text-teal-900 whitespace-nowrap font-black">{activeSubfolder.name}</span></>}
+          </nav>
+        )}
+
+        {/* КАТЕГОРИИ (HOME) */}
+        {currentView === 'home' && searchQuery === '' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {Object.values(MAIN_CATEGORIES).map(cat => (
+              <div key={cat.id} onClick={() => {setActiveCategory(cat); setCurrentView('category');}} className={`h-60 rounded-[48px] bg-gradient-to-br ${cat.color} p-10 text-white cursor-pointer shadow-2xl shadow-slate-200 hover:scale-[1.03] transition-all group relative overflow-hidden active:scale-95`}>
+                <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-125 transition-transform duration-500">{React.cloneElement(cat.icon, { size: 180 })}</div>
+                <div className="relative z-10 flex flex-col h-full justify-between">
+                  <div className="bg-white/20 w-16 h-16 rounded-[24px] flex items-center justify-center border border-white/20 backdrop-blur-md shadow-lg">{cat.icon}</div>
+                  <div>
+                    <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none mb-3">{cat.name}</h2>
+                    <div className="flex items-center gap-2 bg-black/10 w-fit px-4 py-2 rounded-2xl backdrop-blur-sm">
+                       <Layers size={14}/>
+                       <span className="text-[10px] font-black uppercase tracking-widest">{getSubfolderCount(cat.id)} раздела</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ПОДКАТЕГОРИИ (CATEGORY) */}
+        {currentView === 'category' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
+            {subfolders.filter(s => s.parentId === activeCategory.id).map(folder => (
+              <div key={folder.id} onClick={() => {setActiveSubfolder(folder); setCurrentView('subfolder');}} className="bg-white p-7 rounded-[32px] border border-slate-100 shadow-sm hover:border-teal-400 hover:shadow-xl hover:shadow-teal-50/50 transition-all cursor-pointer group active:scale-95 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="bg-teal-50 p-4 rounded-[20px] text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-inner"><FolderOpen size={24}/></div>
+                  {role && (
+                    <div className="flex gap-2">
+                      <button onClick={(e) => {e.stopPropagation(); setEditItem(folder); setFormData({...formData, subfolderName: folder.name, subfolderParent: folder.parentId}); setIsSubfolderModalOpen(true);}} className="p-2.5 text-slate-300 hover:text-blue-500 bg-slate-50 rounded-xl hover:bg-blue-50 transition-colors"><Edit3 size={18}/></button>
+                      <button onClick={(e) => handleDeleteSubfolder(folder.id, e)} className="p-2.5 text-slate-300 hover:text-red-500 bg-slate-50 rounded-xl hover:bg-red-50 transition-colors"><Trash2 size={18}/></button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 uppercase text-sm mb-1 tracking-tight">{folder.name}</h3>
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Database size={12}/>
+                    <span className="text-[9px] font-black uppercase tracking-widest">{getResourceCount(folder.id)} материала</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {subfolders.filter(s => s.parentId === activeCategory.id).length === 0 && (
+              <div className="col-span-full py-24 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100">
+                <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.4em]">Няма добавени раздели</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* РЕСУРСИ (SUBFOLDER) */}
+        {currentView === 'subfolder' && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+               <div className="flex items-center gap-4">
+                  <button onClick={() => setCurrentView('category')} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-teal-600 hover:border-teal-100 transition-all shadow-sm active:scale-90"><ArrowLeft size={20} strokeWidth={3}/></button>
+                  <div>
+                    <h2 className="text-2xl md:text-4xl font-black text-slate-900 uppercase tracking-tighter">{activeSubfolder.name}</h2>
+                    <p className="text-[10px] font-black text-teal-600 uppercase tracking-widest mt-1">Общо {getResourceCount(activeSubfolder.id)} ресурса</p>
+                  </div>
+               </div>
+            </div>
+            {resources.filter(r => r.subfolderIds.includes(activeSubfolder.id)).map(res => (
+              <ResourceCard 
+                key={res.id} 
+                res={res} 
+                role={role} 
+                onEdit={() => { setEditItem(res); setFormData({ resTitle: res.title, resDescription: res.description || '', resUrl: res.url, resType: res.type, resSubfolders: res.subfolderIds }); setIsResourceModalOpen(true); }}
+                onDelete={(e) => handleDeleteResource(res.id, e)}
+              />
+            ))}
+            {resources.filter(r => r.subfolderIds.includes(activeSubfolder.id)).length === 0 && (
+              <div className="py-24 text-center bg-white rounded-[48px] border-2 border-dashed border-slate-100 shadow-sm">
+                <Layers className="mx-auto text-slate-200 mb-4" size={48}/>
+                <p className="text-slate-300 font-black text-[10px] uppercase tracking-[0.5em]">Този раздел е празен</p>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* FOOTER */}
+      <footer className="bg-white border-t border-slate-100 py-16 mt-auto px-6">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
+          <div className="text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+               <div className="w-6 h-1 bg-teal-600 rounded-full"></div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">ЦСОП "ЛЕДА МИЛЕВА"</p>
+            </div>
+            <p className="text-lg font-black text-slate-900 uppercase">Дигитално Хранилище</p>
+            <p className="text-xs font-bold text-slate-400 uppercase mt-1">гр. Долни Дъбник</p>
+          </div>
+          <a href="https://csop-lm.eu/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-[24px] font-black text-[11px] uppercase hover:bg-teal-600 transition-all shadow-xl shadow-slate-200 tracking-widest active:scale-95">
+            <Globe size={18}/> Официален уебсайт
+          </a>
+        </div>
+      </footer>
+
+      {/* --- МОДАЛИ --- */}
+
+      {/* ПАРОЛА */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-[100] animate-in fade-in">
+          <div className="bg-white rounded-[48px] p-10 w-full max-w-sm shadow-2xl border-b-[12px] border-teal-600">
+            <div className="bg-teal-50 w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-8 text-teal-600 shadow-inner"><Lock size={36}/></div>
+            <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter text-slate-900">Вход за редакция</h2>
+            <form onSubmit={handleLogin} className="space-y-5">
+              <input 
+                type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} 
+                className="w-full p-5 rounded-[24px] border-4 text-center text-4xl font-black outline-none bg-slate-50 focus:border-teal-500 transition-all border-slate-50 shadow-inner" 
+                placeholder="••••" autoFocus 
+              />
+              <button type="submit" className="w-full py-5 bg-teal-600 text-white rounded-[24px] font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-teal-100 hover:bg-teal-700 transition-all">Потвърди</button>
+              <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="text-[10px] font-black text-slate-400 uppercase py-2 hover:text-slate-600 w-full text-center tracking-widest">Затвори</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* РЕСУРС МОДАЛ */}
+      {isResourceModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-[100] overflow-y-auto animate-in zoom-in-95">
+          <div className="bg-white rounded-[40px] p-10 w-full max-w-xl shadow-2xl my-6 border-t-[12px] border-teal-600">
+             <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+                  {editItem ? <Edit3 className="text-teal-600"/> : <Plus className="text-teal-600"/>} 
+                  {editItem ? 'Редакция' : 'Добавяне на материал'}
+                </h2>
+                <button onClick={() => setIsResourceModalOpen(false)} className="p-3 bg-slate-50 rounded-full text-slate-400 hover:text-slate-900 transition-colors"><X size={24}/></button>
+             </div>
+             
+             <form onSubmit={handleSaveResource} className="space-y-6">
+                <div className="grid grid-cols-2 gap-3">
+                   <button type="button" onClick={() => setFormData({...formData, resType: 'link'})} className={`py-4 rounded-2xl border-2 font-black text-[11px] uppercase transition-all ${formData.resType === 'link' ? 'bg-teal-600 border-teal-600 text-white shadow-lg shadow-teal-100' : 'bg-slate-50 border-slate-50 text-slate-400 hover:bg-white hover:border-slate-200'}`}>Линк към ресурс</button>
+                   <button type="button" onClick={() => setFormData({...formData, resType: 'file'})} className={`py-4 rounded-2xl border-2 font-black text-[11px] uppercase transition-all ${formData.resType === 'file' ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-100' : 'bg-slate-50 border-slate-50 text-slate-400 hover:bg-white hover:border-slate-200'}`}>Файл / Документ</button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Заглавие на материала</label>
+                  <input type="text" value={formData.resTitle} onChange={e => setFormData({...formData, resTitle: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-[24px] focus:border-teal-500 focus:bg-white outline-none font-bold shadow-inner" placeholder="Какво съдържа материала..." autoFocus required />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Кратка информация / Описание</label>
+                  <textarea value={formData.resDescription} onChange={e => setFormData({...formData, resDescription: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-[24px] focus:border-teal-500 focus:bg-white outline-none font-medium text-sm min-h-[100px] shadow-inner" placeholder="Опишете материала (не е задължително)..." />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Интернет адрес (URL)</label>
+                  <input type="url" value={formData.resUrl} onChange={e => setFormData({...formData, resUrl: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-[24px] focus:border-teal-500 focus:bg-white outline-none font-medium text-xs text-blue-600 shadow-inner" placeholder="https://drive.google.com/..." required />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 text-teal-600">Назначи в раздели (Поне един)</label>
+                  <div className="bg-slate-50 p-5 rounded-[28px] border-2 border-slate-50 max-h-48 overflow-y-auto space-y-2 shadow-inner">
+                    {subfolders.map(folder => (
+                      <div key={folder.id} onClick={() => {
+                        const ids = formData.resSubfolders.includes(folder.id) ? formData.resSubfolders.filter(id => id !== folder.id) : [...formData.resSubfolders, folder.id];
+                        setFormData({...formData, resSubfolders: ids});
+                      }} className="flex items-center justify-between p-3 rounded-xl hover:bg-white transition-all cursor-pointer group shadow-sm border border-transparent hover:border-slate-100">
+                        <div className="flex items-center gap-4">
+                          {formData.resSubfolders.includes(folder.id) ? <div className="bg-teal-600 p-1 rounded-md text-white"><CheckSquare size={16}/></div> : <Square size={18} className="text-slate-300"/>}
+                          <span className={`text-[11px] font-black uppercase ${formData.resSubfolders.includes(folder.id) ? 'text-teal-700' : 'text-slate-500'}`}>{folder.name}</span>
+                        </div>
+                        <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase">{folder.parentId === 'therapy' ? 'Терапия' : 'Обучение'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-5 bg-teal-600 text-white rounded-[24px] font-black uppercase text-[12px] shadow-2xl shadow-teal-100 hover:bg-teal-700 transition-all active:scale-95 mt-4 tracking-widest">Запази промените</button>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ПАПКА МОДАЛ */}
+      {isSubfolderModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in zoom-in-95">
+          <div className="bg-white rounded-[40px] p-10 w-full max-w-md shadow-2xl border-t-[12px] border-teal-600">
+             <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Нов Раздел</h2>
+                <button onClick={() => setIsSubfolderModalOpen(false)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors"><X size={28}/></button>
+             </div>
+             <form onSubmit={handleSaveSubfolder} className="space-y-8">
+                <div className="space-y-3">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 block">Избери основна област</label>
+                   <div className="grid grid-cols-2 gap-3">
+                      {Object.values(MAIN_CATEGORIES).map(cat => (
+                        <button key={cat.id} type="button" onClick={() => setFormData({...formData, subfolderParent: cat.id})} className={`py-4 rounded-2xl border-2 font-black text-[11px] uppercase transition-all ${formData.subfolderParent === cat.id ? 'bg-teal-600 border-teal-600 text-white shadow-lg shadow-teal-100' : 'bg-slate-50 border-slate-50 text-slate-400 hover:bg-white hover:border-slate-200'}`}>{cat.name}</button>
+                      ))}
+                   </div>
+                </div>
+                <div className="space-y-3">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 block">Име на новия раздел</label>
+                   <input type="text" value={formData.subfolderName} onChange={e => setFormData({...formData, subfolderName: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-[24px] focus:border-teal-500 focus:bg-white outline-none font-bold text-center uppercase tracking-tight shadow-inner" placeholder="Пр: Логопед, Психолог..." autoFocus required />
+                </div>
+                <button type="submit" className="w-full py-5 bg-teal-600 text-white rounded-[24px] font-black uppercase text-[12px] shadow-2xl shadow-teal-100 hover:bg-teal-700 transition-all tracking-widest">Създай Раздел</button>
+             </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Компонент за картата на ресурса
+function ResourceCard({ res, role, onEdit, onDelete, showPath = false, subfolders }) {
+  return (
+    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 group hover:shadow-xl hover:shadow-slate-200/50 transition-all">
+      <div className="flex items-start gap-5 w-full overflow-hidden">
+        <div className={`p-5 rounded-[22px] shrink-0 shadow-inner ${res.type === 'file' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+          {res.type === 'file' ? <FileText size={32}/> : <LinkIcon size={32}/>}
+        </div>
+        <div className="truncate">
+          <div className="flex items-center gap-3 flex-wrap mb-2">
+            <h3 className="font-black text-slate-900 text-lg leading-tight">{res.title}</h3>
+            {showPath && res.subfolderIds.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                {res.subfolderIds.map(sid => {
+                  const folder = subfolders.find(f => f.id === sid);
+                  return folder ? (
+                    <span key={sid} className="text-[8px] font-black bg-teal-50 text-teal-600 px-2.5 py-1 rounded-full uppercase border border-teal-100">
+                      {folder.name}
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            )}
+          </div>
+          {res.description && (
+            <p className="text-[13px] text-slate-500 font-medium mb-3 flex items-start gap-2 leading-relaxed bg-slate-50 p-3 rounded-2xl"><Info size={16} className="shrink-0 text-slate-400 mt-0.5"/> {res.description}</p>
+          )}
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] ml-1">{res.type === 'file' ? 'Документ' : 'Външна връзка'}</p>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-5 sm:pt-0">
+        {role && (
+          <div className="flex gap-2 pr-3 mr-3 border-r-2 border-slate-100">
+            <button onClick={onEdit} className="p-3 text-slate-300 hover:text-blue-500 bg-slate-50 rounded-2xl hover:bg-blue-50 transition-all"><Edit3 size={20}/></button>
+            <button onClick={onDelete} className="p-3 text-slate-300 hover:text-red-500 bg-slate-50 rounded-2xl hover:bg-red-50 transition-all"><Trash2 size={20}/></button>
+          </div>
+        )}
+        <a 
+          href={res.url} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="flex-grow sm:flex-grow-0 bg-slate-900 text-white px-8 py-4 rounded-[20px] font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-teal-600 transition-all shadow-lg active:scale-95"
+        >
+          Отвори <ExternalLink size={16}/>
+        </a>
+      </div>
+    </div>
+  );
+}
