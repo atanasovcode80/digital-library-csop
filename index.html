@@ -1,19 +1,374 @@
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Библиотека Ресурси</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyDMUx2UvYY26wU5WZ33Cy6S--Rwl2ZOUcY",
-    authDomain: "digital-library-csop.firebaseapp.com",
-    projectId: "digital-library-csop",
-    storageBucket: "digital-library-csop.firebasestorage.app",
-    messagingSenderId: "277590147002",
-    appId: "1:277590147002:web:a15e7c7c9a40a3732e2783"
-  };
+    <!-- Firebase SDKs (Compatibility Version for easier browser usage) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <div id="root"></div>
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-</script>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // Firebase Configuration
+        const firebaseConfig = JSON.parse(__firebase_config);
+        
+        // Initialize Firebase using compat mode to avoid import issues in browser
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Constants
+        const ADMIN_PASS = "1500510";
+        const SUPER_ADMIN_PASS = "As800224@";
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [resources, setResources] = useState([]);
+            const [categories, setCategories] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('home');
+            const [adminRole, setAdminRole] = useState(null);
+            
+            const [showLogin, setShowLogin] = useState(false);
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [showManageCats, setShowManageCats] = useState(false);
+            const [password, setPassword] = useState("");
+            
+            const [newResource, setNewResource] = useState({ 
+                title: '', 
+                link: '', 
+                description: '', 
+                category: 'Общи', 
+                tags: [] 
+            });
+            const [newCatName, setNewCatName] = useState("");
+
+            useEffect(() => {
+                auth.signInAnonymously().catch(err => console.error("Auth error", err));
+                return auth.onAuthStateChanged(setUser);
+            }, []);
+
+            useEffect(() => {
+                if (!user) return;
+
+                const resPath = `artifacts/${appId}/public/data/resources`;
+                const unsubRes = db.collection(resPath).onSnapshot((snapshot) => {
+                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setResources(data);
+                    setLoading(false);
+                });
+
+                const catPath = `artifacts/${appId}/public/data/categories`;
+                const unsubCat = db.collection(catPath).onSnapshot((snapshot) => {
+                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    if (!data.find(c => c.name === "Общи")) data.unshift({ name: "Общи", id: 'default' });
+                    setCategories(data);
+                });
+
+                return () => { unsubRes(); unsubCat(); };
+            }, [user]);
+
+            const handleLogin = () => {
+                if (password === SUPER_ADMIN_PASS) {
+                    setAdminRole('superadmin');
+                    setShowLogin(false);
+                } else if (password === ADMIN_PASS) {
+                    setAdminRole('admin');
+                    setShowLogin(false);
+                } else {
+                    alert("Грешна парола!");
+                }
+                setPassword("");
+            };
+
+            const addResource = async () => {
+                if (!newResource.title || !newResource.link) return;
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/resources`).add({
+                        ...newResource,
+                        createdAt: Date.now()
+                    });
+                    setShowAddModal(false);
+                    setNewResource({ title: '', link: '', description: '', category: 'Общи', tags: [] });
+                } catch (e) { console.error(e); }
+            };
+
+            const deleteResource = async (id) => {
+                if (adminRole !== 'superadmin') return;
+                await db.doc(`artifacts/${appId}/public/data/resources/${id}`).delete();
+            };
+
+            const addCategory = async () => {
+                if (!newCatName || adminRole !== 'superadmin') return;
+                await db.collection(`artifacts/${appId}/public/data/categories`).add({ name: newCatName });
+                setNewCatName("");
+            };
+
+            const deleteCategory = async (id) => {
+                if (id === 'default' || adminRole !== 'superadmin') return;
+                await db.doc(`artifacts/${appId}/public/data/categories/${id}`).delete();
+            };
+
+            const toggleTag = (tagName) => {
+                setNewResource(prev => ({
+                    ...prev,
+                    tags: prev.tags.includes(tagName) 
+                        ? prev.tags.filter(t => t !== tagName)
+                        : [...prev.tags, tagName]
+                }));
+            };
+
+            const filteredResources = useMemo(() => {
+                return resources.filter(r => {
+                    if (activeTab === 'home') return true;
+                    return r.category === activeTab || (r.tags && r.tags.includes(activeTab));
+                });
+            }, [resources, activeTab]);
+
+            if (loading) return <div className="flex h-screen items-center justify-center">Зареждане...</div>;
+
+            return (
+                <div className="max-w-4xl mx-auto p-4 pb-24">
+                    <header className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-800">📚 Библиотека</h1>
+                            <p className="text-slate-500">ЦСОП „Леда Милева“ - Ресурси</p>
+                        </div>
+                        <div className="flex gap-2 text-2xl">
+                            {adminRole ? (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold uppercase tracking-wider">
+                                        {adminRole === 'superadmin' ? 'Суперадмин' : 'Админ'}
+                                    </span>
+                                    <button 
+                                        onClick={() => setShowAddModal(true)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md active:scale-95"
+                                    >
+                                        + Нов Ресурс
+                                    </button>
+                                    <button onClick={() => setAdminRole(null)} className="text-slate-400 hover:text-red-500 underline text-xs font-bold">Изход</button>
+                                </div>
+                            ) : (
+                                <button onClick={() => setShowLogin(true)} className="opacity-40 hover:opacity-100 transition-opacity">🔐</button>
+                            )}
+                        </div>
+                    </header>
+
+                    <div className="flex flex-wrap gap-2 mb-8 bg-white p-2 rounded-xl shadow-sm overflow-x-auto no-scrollbar">
+                        <button 
+                            onClick={() => setActiveTab('home')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${activeTab === 'home' ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-slate-100 text-slate-600'}`}
+                        >
+                            Всички
+                        </button>
+                        {categories.map(cat => (
+                            <button 
+                                key={cat.id}
+                                onClick={() => setActiveTab(cat.name)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${activeTab === cat.name ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-slate-100 text-slate-600'}`}
+                            >
+                                {cat.name}
+                            </button>
+                        ))}
+                        {adminRole === 'superadmin' && (
+                            <button 
+                                onClick={() => setShowManageCats(true)}
+                                className="px-4 py-2 rounded-lg text-sm font-medium border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500"
+                            >
+                                ⚙️ Категории
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                        {filteredResources.length > 0 ? filteredResources.map(res => (
+                            <div key={res.id} className="group bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex-1">
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase">{res.category}</span>
+                                        {res.tags?.map(tag => (
+                                            <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">#{tag}</span>
+                                        ))}
+                                    </div>
+                                    <h3 className="text-lg font-bold text-slate-800 mb-1">{res.title}</h3>
+                                    <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed">{res.description}</p>
+                                </div>
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <a 
+                                        href={res.link} 
+                                        target="_blank" 
+                                        className="flex-1 md:flex-none text-center bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                                    >
+                                        Отвори
+                                    </a>
+                                    {adminRole === 'superadmin' && (
+                                        <button 
+                                            onClick={() => deleteResource(res.id)}
+                                            className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                                        >
+                                            🗑️
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+                                <p className="text-slate-400 font-medium tracking-wide uppercase text-xs">Няма намерени материали</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <footer className="mt-12 text-center py-8 border-t border-slate-200 text-slate-400 text-sm space-y-2">
+                        <p>© 2024 ЦСОП „Леда Милева“: Всички права запазени</p>
+                        <p className="font-medium text-slate-500">Библиотека за специалисти</p>
+                    </footer>
+
+                    {/* Modals */}
+                    {showLogin && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-white/20">
+                                <h2 className="text-xl font-bold mb-6 text-center text-slate-800 tracking-tight">Вход за администрация</h2>
+                                <input 
+                                    type="password" 
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Парола..."
+                                    className="w-full p-4 border rounded-2xl mb-4 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                />
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowLogin(false)} className="flex-1 py-3 text-slate-400 font-bold uppercase text-xs tracking-widest">Отказ</button>
+                                    <button onClick={handleLogin} className="flex-1 bg-blue-600 text-white rounded-2xl font-bold py-3 shadow-lg shadow-blue-200 active:scale-95 transition-all uppercase text-xs tracking-widest">Влез</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showAddModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg my-8">
+                                <h2 className="text-2xl font-bold mb-6 tracking-tight">Нов ресурс</h2>
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Заглавие</label>
+                                        <input 
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={newResource.title}
+                                            onChange={e => setNewResource({...newResource, title: e.target.value})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Линк</label>
+                                        <input 
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={newResource.link}
+                                            onChange={e => setNewResource({...newResource, link: e.target.value})}
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Основна Категория</label>
+                                            <select 
+                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={newResource.category}
+                                                onChange={e => setNewResource({...newResource, category: e.target.value})}
+                                            >
+                                                <option value="Общи">Общи</option>
+                                                <option value="Книги">Книги</option>
+                                                <option value="Материали">Материали</option>
+                                                <option value="Терапия">Терапия</option>
+                                                <option value="Пособия">Пособия</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block">Подкатегории (Checkboxes)</label>
+                                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-3 border border-slate-100 bg-slate-50 rounded-xl">
+                                            {categories.map(cat => (
+                                                <button
+                                                    key={cat.id}
+                                                    type="button"
+                                                    onClick={() => toggleTag(cat.name)}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${newResource.tags.includes(cat.name) ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-100'}`}
+                                                >
+                                                    {newResource.tags.includes(cat.name) ? '✓ ' : ''}{cat.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Описание</label>
+                                        <textarea 
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={newResource.description}
+                                            onChange={e => setNewResource({...newResource, description: e.target.value})}
+                                        />
+                                    </div>
+                                    
+                                    <div className="flex gap-4 pt-4 border-t">
+                                        <button onClick={() => setShowAddModal(false)} className="flex-1 py-4 font-bold text-slate-400 uppercase text-xs tracking-widest">Отказ</button>
+                                        <button onClick={addResource} className="flex-1 bg-blue-600 text-white rounded-2xl font-bold py-4 shadow-xl shadow-blue-100 uppercase text-xs tracking-widest">Запази</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showManageCats && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md">
+                                <h2 className="text-xl font-bold mb-6 tracking-tight">Управление на категории</h2>
+                                <div className="flex gap-2 mb-6">
+                                    <input 
+                                        type="text" 
+                                        value={newCatName}
+                                        onChange={(e) => setNewCatName(e.target.value)}
+                                        placeholder="Ново име..."
+                                        className="flex-1 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+                                    />
+                                    <button onClick={addCategory} className="bg-green-600 text-white px-6 rounded-xl font-bold shadow-lg shadow-green-100">+</button>
+                                </div>
+                                <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scroll">
+                                    {categories.map(cat => (
+                                        <div key={cat.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl group border border-transparent hover:border-slate-200 transition-all">
+                                            <span className="font-bold text-slate-700 text-sm tracking-tight">{cat.name}</span>
+                                            {cat.id !== 'default' && (
+                                                <button 
+                                                    onClick={() => deleteCategory(cat.id)}
+                                                    className="text-red-300 hover:text-red-500 font-bold transition-colors p-1"
+                                                >
+                                                    Изтрий
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => setShowManageCats(false)} className="w-full mt-6 py-4 bg-slate-100 rounded-xl font-bold text-slate-500 uppercase text-xs tracking-widest">Затвори</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
