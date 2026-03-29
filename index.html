@@ -16,7 +16,6 @@
         .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
         .modal-active { display: flex !important; }
         
-        /* Custom Checkbox as Switch/Button */
         .filter-chip { display: none; }
         .filter-label { 
             cursor: pointer; padding: 0.75rem 1.5rem; border-radius: 1rem; border: 2px solid #e2e8f0; 
@@ -24,6 +23,9 @@
         }
         .filter-chip:checked + .filter-label.therapy { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
         .filter-chip:checked + .filter-label.education { border-color: #9333ea; color: #9333ea; background: #faf5ff; }
+
+        .category-card { transition: all 0.3s ease; }
+        .category-card:hover { transform: scale(1.03); border-color: #3b82f6; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -45,7 +47,7 @@
     <!-- Header -->
     <header class="main-gradient text-white py-10 shadow-xl relative overflow-hidden">
         <div class="container mx-auto px-6 relative z-10 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="flex flex-col md:flex-row items-center gap-6">
+            <div class="flex flex-col md:flex-row items-center gap-6" onclick="exitSection()" style="cursor: pointer;">
                 <div class="bg-white p-4 rounded-3xl shadow-2xl">
                     <i class="fas fa-book-open text-blue-600 text-5xl"></i>
                 </div>
@@ -69,8 +71,8 @@
     <!-- Main Content Area -->
     <main class="container mx-auto px-4 py-12 flex-grow">
         
-        <!-- Search & Filter Bar -->
-        <div class="max-w-4xl mx-auto mb-16 px-4">
+        <!-- Search & Filter Bar (Only visible on home or results) -->
+        <div id="searchContainer" class="max-w-4xl mx-auto mb-16 px-4">
             <div class="relative group mb-6">
                 <i class="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-xl"></i>
                 <input type="text" id="mainSearch" placeholder="Търсете ресурс по име..." 
@@ -93,7 +95,7 @@
             </div>
         </div>
 
-        <!-- VIEW 1: DASHBOARD (Selection) -->
+        <!-- VIEW 1: DASHBOARD (Main Sections) -->
         <div id="view-dashboard" class="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-6xl mx-auto">
             <div onclick="enterSection('therapy')" class="hero-card cursor-pointer group bg-white rounded-[2.5rem] p-10 flex flex-col items-center text-center shadow-lg hover:shadow-2xl border border-slate-100">
                 <div class="w-32 h-32 bg-blue-50 rounded-full flex items-center justify-center mb-8 group-hover:bg-blue-600 transition-colors duration-500">
@@ -101,8 +103,8 @@
                 </div>
                 <h2 class="text-4xl font-black text-slate-800 uppercase mb-4 tracking-tight">Терапия</h2>
                 <p class="text-slate-500 mb-8 max-w-xs">Ресурси за логопеди, психолози и терапевтични занимания.</p>
-                <div class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-md">Влез в Секцията</div>
-                <div id="stats-therapy" class="mt-6 text-xs font-bold text-slate-400 uppercase">0 категории | 0 ресурса</div>
+                <div class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-md">Виж Подкатегориите</div>
+                <div id="stats-therapy" class="mt-6 text-xs font-bold text-slate-400 uppercase">0 подкатегории | 0 ресурса</div>
             </div>
 
             <div onclick="enterSection('education')" class="hero-card cursor-pointer group bg-white rounded-[2.5rem] p-10 flex flex-col items-center text-center shadow-lg hover:shadow-2xl border border-slate-100">
@@ -111,16 +113,16 @@
                 </div>
                 <h2 class="text-4xl font-black text-slate-800 uppercase mb-4 tracking-tight">Обучение</h2>
                 <p class="text-slate-500 mb-8 max-w-xs">Учебни материали, помагала и дигитални уроци.</p>
-                <div class="bg-purple-600 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-md">Влез в Секцията</div>
-                <div id="stats-education" class="mt-6 text-xs font-bold text-slate-400 uppercase">0 категории | 0 ресурса</div>
+                <div class="bg-purple-600 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-md">Виж Подкатегориите</div>
+                <div id="stats-education" class="mt-6 text-xs font-bold text-slate-400 uppercase">0 подкатегории | 0 ресурса</div>
             </div>
         </div>
 
-        <!-- VIEW 2: CATEGORY VIEW -->
-        <div id="view-section" class="hidden">
+        <!-- VIEW 2: SUBCATEGORY LIST -->
+        <div id="view-subcategories" class="hidden">
             <div class="flex flex-col sm:flex-row justify-between items-center mb-10 gap-4">
                 <button onclick="exitSection()" class="flex items-center gap-3 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold transition">
-                    <i class="fas fa-arrow-left"></i> Назад към Начало
+                    <i class="fas fa-arrow-left"></i> Начало
                 </button>
                 <div class="flex items-center gap-4">
                     <h2 id="sectionTitle" class="text-3xl font-black uppercase text-slate-800 tracking-tight"></h2>
@@ -128,9 +130,34 @@
                 </div>
             </div>
 
-            <div id="resourceGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Dynamic Content -->
+            <div id="subcategoryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Subcategories load here -->
             </div>
+        </div>
+
+        <!-- VIEW 3: RESOURCE LIST (Deep Level) -->
+        <div id="view-resources" class="hidden">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-10 gap-4">
+                <button onclick="goBackToSubcategories()" class="flex items-center gap-3 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold transition">
+                    <i class="fas fa-arrow-left"></i> Обратно към Подкатегории
+                </button>
+                <h2 id="activeSubcatTitle" class="text-2xl font-black uppercase text-slate-800 tracking-tight text-center"></h2>
+            </div>
+
+            <div id="resourceGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Resources load here -->
+            </div>
+        </div>
+
+        <!-- Search Results View (Global Search) -->
+        <div id="view-search-results" class="hidden">
+            <div class="flex justify-between items-center mb-10">
+                <button onclick="exitSection()" class="flex items-center gap-3 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold transition">
+                    <i class="fas fa-times"></i> Изчисти търсенето
+                </button>
+                <h2 class="text-2xl font-black uppercase text-slate-800 tracking-tight">Резултати от търсене</h2>
+            </div>
+            <div id="searchGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
         </div>
 
         <!-- No Results -->
@@ -185,7 +212,7 @@
     <!-- MODALS -->
     <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 glass hidden z-[200] items-center justify-center p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden">
             <div class="p-10 text-center">
                 <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <i class="fas fa-lock text-3xl"></i>
@@ -193,28 +220,28 @@
                 <h3 class="text-2xl font-black text-slate-800 mb-6 uppercase tracking-tight">Вход в системата</h3>
                 <input type="password" id="passInput" placeholder="Парола..." class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-blue-500/10 mb-4 transition-all">
                 <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold uppercase shadow-xl hover:bg-blue-700 transition">Потвърди</button>
-                <button onclick="toggleModal('loginModal')" class="mt-4 text-slate-400 text-sm font-bold uppercase tracking-wider">Отказ (Esc)</button>
+                <button onclick="toggleModal('loginModal')" class="mt-4 text-slate-400 text-sm font-bold uppercase tracking-wider">Отказ</button>
             </div>
         </div>
     </div>
 
     <!-- Category Modal -->
     <div id="categoryModal" class="fixed inset-0 glass hidden z-[200] items-center justify-center p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden p-8 animate-in slide-in-from-bottom-8 duration-300">
+        <div class="bg-white rounded-[2rem] w-full max-w-md shadow-2xl p-8">
             <h3 class="text-xl font-black uppercase text-slate-800 border-b pb-6 mb-6">Нова Подкатегория</h3>
             <form id="categoryForm" class="space-y-6">
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2 ml-1">Име на категорията</label>
-                    <input type="text" name="catName" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-emerald-500/10">
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Име на подкатегорията</label>
+                    <input type="text" name="catName" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
                 </div>
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2 ml-1">Главна Секция</label>
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Главна Секция</label>
                     <select name="mainSection" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold">
                         <option value="therapy">Терапия</option>
                         <option value="education">Обучение</option>
                     </select>
                 </div>
-                <button type="submit" class="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold uppercase shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition">Създай</button>
+                <button type="submit" class="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold uppercase shadow-lg hover:bg-emerald-600 transition">Създай</button>
                 <button type="button" onclick="toggleModal('categoryModal')" class="w-full text-slate-400 text-xs font-black uppercase mt-4">Затвори</button>
             </form>
         </div>
@@ -222,30 +249,23 @@
 
     <!-- Resource Modal -->
     <div id="resourceModal" class="fixed inset-0 glass hidden z-[200] items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl my-8 animate-in slide-in-from-bottom-8 duration-300">
-            <div class="p-8 border-b">
-                <h3 class="text-xl font-black uppercase text-slate-800">Добавяне на Ресурс</h3>
-            </div>
+        <div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl my-8">
+            <div class="p-8 border-b"><h3 class="text-xl font-black uppercase text-slate-800">Добавяне на Ресурс</h3></div>
             <form id="resourceForm" class="p-8 space-y-6">
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2 ml-1">Заглавие</label>
-                    <input type="text" name="resTitle" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-amber-500/10">
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Заглавие</label>
+                    <input type="text" name="resTitle" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
                 </div>
-                
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2 ml-1">Избери Подкатегории (Mного от тях могат да се отметнат)</label>
-                    <div id="subCatCheckboxes" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <!-- Checkboxes load here -->
-                    </div>
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Избери Подкатегории</label>
+                    <div id="subCatCheckboxes" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 bg-slate-50 rounded-2xl"></div>
                 </div>
-
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2 ml-1">Връзка към ресурса (Линк)</label>
-                    <input type="url" name="resLink" required placeholder="https://..." class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-mono text-sm focus:ring-4 focus:ring-amber-500/10">
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Линк към ресурса</label>
+                    <input type="url" name="resLink" required placeholder="https://..." class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
                 </div>
-
-                <button type="submit" class="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 py-4 rounded-2xl font-bold uppercase shadow-xl transition transform active:scale-95">Добави в Библиотеката</button>
-                <button type="button" onclick="toggleModal('resourceModal')" class="w-full text-slate-400 text-xs font-black uppercase tracking-widest mt-4">Отказ</button>
+                <button type="submit" class="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 py-4 rounded-2xl font-bold uppercase shadow-xl transition">Добави</button>
+                <button type="button" onclick="toggleModal('resourceModal')" class="w-full text-slate-400 text-xs font-black uppercase mt-4">Отказ</button>
             </form>
         </div>
     </div>
@@ -254,7 +274,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyDMUx2UvYY26wU5WZ33Cy6S--Rwl2ZOUcY",
             authDomain: "digital-library-csop.firebaseapp.com",
@@ -269,205 +288,212 @@
         const colRes = collection(db, "resources");
         const colCat = collection(db, "subcategories");
 
-        // STATE
         let currentRole = 'visitor';
         let activeSection = null; 
+        let activeSubcatId = null;
         let categories = [];
         let resources = [];
 
         window.onload = () => {
             document.getElementById('yearLabel').innerText = new Date().getFullYear();
             initData();
-            
-            // ESC key support
-            window.addEventListener('keydown', (e) => {
-                if(e.key === "Escape") {
-                    document.querySelectorAll('.glass').forEach(m => m.classList.add('hidden'));
-                }
-            });
         };
 
         function initData() {
             onSnapshot(query(colCat, orderBy("name")), (snap) => {
                 categories = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                renderStats();
-                updateFormCategories();
+                renderAll();
             });
 
             onSnapshot(query(colRes, orderBy("timestamp", "desc")), (snap) => {
                 resources = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                renderStats();
-                handleSearchAndFilter();
+                renderAll();
             });
         }
 
-        // AUTH
-        window.handleLogin = () => {
-            const pass = document.getElementById('passInput').value;
-            const status = document.getElementById('authStatusText');
-            const controls = document.getElementById('adminControls');
-            const btnNewCat = document.getElementById('btnNewCat');
-
-            if (pass === 'As800224@') {
-                currentRole = 'superadmin';
-                status.innerText = 'Режим: Super Admin';
-                controls.classList.remove('hidden');
-                btnNewCat.classList.remove('hidden');
-                toggleModal('loginModal');
-            } else if (pass === '1500510') {
-                currentRole = 'admin';
-                status.innerText = 'Режим: Admin';
-                controls.classList.remove('hidden');
-                btnNewCat.classList.add('hidden');
-                toggleModal('loginModal');
-            } else {
-                alert('Грешна парола!');
-                return;
-            }
-            document.getElementById('loginBtn').classList.add('hidden');
-            document.getElementById('logoutBtn').classList.remove('hidden');
+        function renderAll() {
+            renderStats();
+            updateFormCategories();
             handleSearchAndFilter();
-        };
+            if (activeSection) renderSubcategories();
+            if (activeSubcatId) renderResourcesForSubcat();
+        }
 
-        window.logout = () => { location.reload(); };
-
-        // NAVIGATION
-        window.enterSection = (sec) => {
-            activeSection = sec;
-            document.getElementById('view-dashboard').classList.add('hidden');
-            document.getElementById('view-section').classList.remove('hidden');
-            document.getElementById('sectionTitle').innerText = sec === 'therapy' ? 'Секция Терапия' : 'Секция Обучение';
-            document.getElementById('sectionBadge').innerText = sec === 'therapy' ? 'Терапия' : 'Обучение';
-            document.getElementById('sectionBadge').className = sec === 'therapy' ? 'bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-black uppercase' : 'bg-purple-100 text-purple-700 px-4 py-1 rounded-full text-xs font-black uppercase';
-            
-            // Sync filter checkboxes when entering section
-            document.getElementById('filterTherapy').checked = (sec === 'therapy');
-            document.getElementById('filterEducation').checked = (sec === 'education');
-            
-            handleSearchAndFilter();
-        };
-
-        window.exitSection = () => {
-            activeSection = null;
-            document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('view-section').classList.add('hidden');
-            document.getElementById('noResults').classList.add('hidden');
-            // Reset filters to default both checked
-            document.getElementById('filterTherapy').checked = true;
-            document.getElementById('filterEducation').checked = true;
-        };
-
-        // RENDERING & FILTER LOGIC
         function renderStats() {
             const tCat = categories.filter(c => c.main === 'therapy').length;
             const eCat = categories.filter(c => c.main === 'education').length;
-            
-            const tRes = resources.filter(r => {
-                return (r.subIds || []).some(id => categories.find(c => c.id === id)?.main === 'therapy');
-            }).length;
-
-            const eRes = resources.filter(r => {
-                return (r.subIds || []).some(id => categories.find(c => c.id === id)?.main === 'education');
-            }).length;
+            const tRes = resources.filter(r => (r.subIds || []).some(id => categories.find(c => c.id === id)?.main === 'therapy')).length;
+            const eRes = resources.filter(r => (r.subIds || []).some(id => categories.find(c => c.id === id)?.main === 'education')).length;
 
             document.getElementById('stats-therapy').innerText = `${tCat} подкатегории | ${tRes} ресурса`;
             document.getElementById('stats-education').innerText = `${eCat} подкатегории | ${eRes} ресурса`;
         }
 
-        window.handleSearchAndFilter = () => {
-            if(!activeSection) {
-                // We are on dashboard, search is global but can be filtered by chips
-                return; 
-            }
-            renderSectionContent();
+        // VIEW NAVIGATION
+        window.enterSection = (sec) => {
+            activeSection = sec;
+            activeSubcatId = null;
+            hideAllViews();
+            document.getElementById('view-subcategories').classList.remove('hidden');
+            document.getElementById('sectionTitle').innerText = sec === 'therapy' ? 'Секция Терапия' : 'Секция Обучение';
+            document.getElementById('sectionBadge').innerText = sec === 'therapy' ? 'Терапия' : 'Обучение';
+            document.getElementById('sectionBadge').className = sec === 'therapy' ? 'bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-black uppercase' : 'bg-purple-100 text-purple-700 px-4 py-1 rounded-full text-xs font-black uppercase';
+            renderSubcategories();
+        };
+
+        window.exitSection = () => {
+            activeSection = null;
+            activeSubcatId = null;
+            document.getElementById('mainSearch').value = '';
+            hideAllViews();
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('searchContainer').classList.remove('hidden');
+        };
+
+        window.enterSubcategory = (catId, catName) => {
+            activeSubcatId = catId;
+            hideAllViews();
+            document.getElementById('view-resources').classList.remove('hidden');
+            document.getElementById('activeSubcatTitle').innerText = catName;
+            renderResourcesForSubcat();
+        };
+
+        window.goBackToSubcategories = () => {
+            activeSubcatId = null;
+            hideAllViews();
+            document.getElementById('view-subcategories').classList.remove('hidden');
+            renderSubcategories();
+        };
+
+        function hideAllViews() {
+            ['view-dashboard', 'view-subcategories', 'view-resources', 'view-search-results', 'noResults'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
         }
 
-        function renderSectionContent() {
-            const container = document.getElementById('resourceGrid');
-            const search = document.getElementById('mainSearch').value.toLowerCase();
-            const allowTherapy = document.getElementById('filterTherapy').checked;
-            const allowEducation = document.getElementById('filterEducation').checked;
+        // RENDERING LOGIC
+        function renderSubcategories() {
+            const grid = document.getElementById('subcategoryGrid');
+            const filteredCats = categories.filter(c => c.main === activeSection);
             
-            const filtered = resources.filter(r => {
-                const subIds = r.subIds || [r.subId]; 
-                const inAllowedSection = subIds.some(sid => {
-                    const cat = categories.find(c => c.id === sid);
-                    if(!cat) return false;
-                    if(cat.main === 'therapy' && allowTherapy) return true;
-                    if(cat.main === 'education' && allowEducation) return true;
-                    return false;
-                });
-                const matchesSearch = r.title.toLowerCase().includes(search);
-                return inAllowedSection && matchesSearch;
-            });
-
-            if(filtered.length === 0) {
-                container.innerHTML = '';
-                document.getElementById('noResults').classList.remove('hidden');
-                return;
-            }
-
-            document.getElementById('noResults').classList.add('hidden');
-            container.innerHTML = filtered.map(r => {
-                const subIds = r.subIds || [r.subId];
-                const catLabels = subIds
-                    .map(id => categories.find(c => c.id === id)?.name)
-                    .filter(name => name)
-                    .map(name => `<span class="bg-slate-100 text-[10px] px-2 py-0.5 rounded-md font-bold text-slate-400 uppercase border border-slate-200">${name}</span>`)
-                    .join(' ');
-
-                // Determine border color based on first category's main section
-                const firstCat = categories.find(c => c.id === subIds[0]);
-                const borderClass = (firstCat?.main === 'therapy') ? 'border-b-blue-500' : 'border-b-purple-500';
-
+            grid.innerHTML = filteredCats.map(c => {
+                const count = resources.filter(r => (r.subIds || []).includes(c.id)).length;
+                const colorClass = activeSection === 'therapy' ? 'border-l-blue-500 hover:bg-blue-50' : 'border-l-purple-500 hover:bg-purple-50';
+                
                 return `
-                    <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-100 flex flex-col justify-between hover:shadow-xl transition-all border-b-4 ${borderClass}">
+                    <div onclick="enterSubcategory('${c.id}', '${c.name}')" class="category-card cursor-pointer bg-white p-6 rounded-2xl shadow-sm border border-slate-100 border-l-8 ${colorClass} flex flex-col justify-between">
                         <div>
-                            <div class="flex justify-between items-start mb-4">
-                                <div class="flex flex-wrap gap-1">${catLabels}</div>
-                                ${currentRole === 'superadmin' ? `
-                                    <button onclick="window.deleteItem('${r.id}')" class="text-slate-300 hover:text-red-500 transition ml-2">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                ` : ''}
-                            </div>
-                            <h4 class="font-bold text-slate-800 leading-snug mb-6">${r.title}</h4>
+                            <h3 class="font-bold text-slate-800 uppercase tracking-tight mb-2">${c.name}</h3>
+                            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${count} ресурса</div>
                         </div>
-                        <a href="${r.link}" target="_blank" class="flex items-center justify-center gap-2 w-full py-3 bg-slate-50 hover:bg-slate-900 hover:text-white rounded-xl text-slate-600 font-bold text-sm transition-all group">
-                            Към Ресурса <i class="fas fa-external-link-alt text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                        </a>
+                        <div class="mt-4 flex justify-end">
+                            <i class="fas fa-chevron-right text-slate-300"></i>
+                        </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function updateFormCategories() {
-            const container = document.getElementById('subCatCheckboxes');
-            container.innerHTML = categories.map(c => `
-                <div class="relative">
-                    <input type="checkbox" name="catCheck" value="${c.id}" id="chk-${c.id}" class="hidden custom-checkbox-hidden">
-                    <label for="chk-${c.id}" class="block px-3 py-2 border-2 border-slate-100 rounded-xl text-[10px] font-black text-slate-400 cursor-pointer hover:border-blue-200 transition-all truncate bg-white">
-                        <span class="mr-1">${c.main === 'therapy' ? '💙' : '💜'}</span> ${c.name}
-                    </label>
-                </div>
-            `).join('');
+        function renderResourcesForSubcat() {
+            const grid = document.getElementById('resourceGrid');
+            const filteredRes = resources.filter(r => (r.subIds || []).includes(activeSubcatId));
+            
+            if (filteredRes.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-400 italic">Все още няма добавени материали в тази подкатегория.</div>';
+                return;
+            }
 
-            // Add styles for the multi-select labels in the modal
-            const style = document.createElement('style');
-            style.innerHTML = `
-                .custom-checkbox-hidden:checked + label { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
-            `;
-            document.head.appendChild(style);
+            grid.innerHTML = filteredRes.map(r => resourceCardHtml(r)).join('');
         }
 
-        // ACTIONS
+        function resourceCardHtml(r) {
+            return `
+                <div class="bg-white rounded-2xl p-6 shadow-md border border-slate-100 flex flex-col justify-between hover:shadow-lg transition-all">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                             <div class="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
+                                <i class="fas fa-file-alt"></i>
+                             </div>
+                             ${currentRole === 'superadmin' ? `
+                                <button onclick="deleteResource('${r.id}')" class="text-slate-300 hover:text-red-500 transition">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                             ` : ''}
+                        </div>
+                        <h4 class="font-bold text-slate-800 leading-snug mb-6">${r.title}</h4>
+                    </div>
+                    <a href="${r.link}" target="_blank" class="w-full py-3 bg-slate-100 hover:bg-slate-900 hover:text-white rounded-xl text-slate-600 font-bold text-sm transition-all text-center">
+                        Отвори
+                    </a>
+                </div>
+            `;
+        }
+
+        // GLOBAL SEARCH HANDLER
+        window.handleSearchAndFilter = () => {
+            const search = document.getElementById('mainSearch').value.toLowerCase().trim();
+            const allowTherapy = document.getElementById('filterTherapy').checked;
+            const allowEducation = document.getElementById('filterEducation').checked;
+
+            if (search.length < 1) {
+                if (!activeSection) {
+                    hideAllViews();
+                    document.getElementById('view-dashboard').classList.remove('hidden');
+                }
+                return;
+            }
+
+            hideAllViews();
+            document.getElementById('view-search-results').classList.remove('hidden');
+            
+            const results = resources.filter(r => {
+                const matchesSearch = r.title.toLowerCase().includes(search);
+                const subIds = r.subIds || [];
+                const inAllowedSection = subIds.some(sid => {
+                    const cat = categories.find(c => c.id === sid);
+                    if(!cat) return false;
+                    return (cat.main === 'therapy' && allowTherapy) || (cat.main === 'education' && allowEducation);
+                });
+                return matchesSearch && inAllowedSection;
+            });
+
+            const grid = document.getElementById('searchGrid');
+            if (results.length === 0) {
+                grid.innerHTML = '';
+                document.getElementById('noResults').classList.remove('hidden');
+            } else {
+                grid.innerHTML = results.map(r => resourceCardHtml(r)).join('');
+            }
+        };
+
+        // ADMIN ACTIONS
+        window.handleLogin = () => {
+            const pass = document.getElementById('passInput').value;
+            const status = document.getElementById('authStatusText');
+            const controls = document.getElementById('adminControls');
+            if (pass === 'As800224@') {
+                currentRole = 'superadmin';
+                status.innerText = 'Режим: Super Admin';
+                controls.classList.remove('hidden');
+                document.getElementById('btnNewCat').classList.remove('hidden');
+                toggleModal('loginModal');
+            } else if (pass === '1500510') {
+                currentRole = 'admin';
+                status.innerText = 'Режим: Admin';
+                controls.classList.remove('hidden');
+                toggleModal('loginModal');
+            } else { alert('Грешна парола!'); }
+            document.getElementById('loginBtn').classList.add('hidden');
+            document.getElementById('logoutBtn').classList.remove('hidden');
+            renderAll();
+        };
+
+        window.logout = () => location.reload();
+
         document.getElementById('categoryForm').onsubmit = async (e) => {
             e.preventDefault();
             const fd = new FormData(e.target);
-            await addDoc(colCat, {
-                name: fd.get('catName'),
-                main: fd.get('mainSection')
-            });
+            await addDoc(colCat, { name: fd.get('catName'), main: fd.get('mainSection') });
             e.target.reset();
             toggleModal('categoryModal');
         };
@@ -476,44 +502,28 @@
             e.preventDefault();
             const fd = new FormData(e.target);
             const selectedCats = Array.from(document.querySelectorAll('input[name="catCheck"]:checked')).map(el => el.value);
-            
-            if(selectedCats.length === 0) {
-                alert('Моля, изберете поне една подкатегория!');
-                return;
-            }
-
-            await addDoc(colRes, {
-                title: fd.get('resTitle'),
-                subIds: selectedCats,
-                link: fd.get('resLink'),
-                timestamp: serverTimestamp()
-            });
+            if(selectedCats.length === 0) return alert('Изберете категория!');
+            await addDoc(colRes, { title: fd.get('resTitle'), subIds: selectedCats, link: fd.get('resLink'), timestamp: serverTimestamp() });
             e.target.reset();
             toggleModal('resourceModal');
         };
 
-        window.deleteItem = async (id) => {
-            if(confirm('Наистина ли искате да изтриете този ресурс?')) {
-                await deleteDoc(doc(db, "resources", id));
-            }
+        window.deleteResource = async (id) => {
+            if(confirm('Изтриване?')) await deleteDoc(doc(db, "resources", id));
         };
 
-        window.toggleModal = (id) => {
-            const modal = document.getElementById(id);
-            modal.classList.toggle('hidden');
-            modal.classList.toggle('modal-active');
-        };
+        function updateFormCategories() {
+            const container = document.getElementById('subCatCheckboxes');
+            container.innerHTML = categories.map(c => `
+                <div class="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100">
+                    <input type="checkbox" name="catCheck" value="${c.id}" id="chk-${c.id}">
+                    <label for="chk-${c.id}" class="text-[10px] font-bold text-slate-600 uppercase truncate">${c.name}</label>
+                </div>
+            `).join('');
+        }
 
-        document.getElementById('mainSearch').addEventListener('input', () => {
-            // If user starts typing while on dashboard, we might want to automatically switch views
-            // For now, it just filters if already in a section
-            if(activeSection) {
-                handleSearchAndFilter();
-            } else if (document.getElementById('mainSearch').value.length > 2) {
-                // Optional: Auto-enter Therapy if typing on home
-                // enterSection('therapy');
-            }
-        });
+        window.toggleModal = (id) => document.getElementById(id).classList.toggle('hidden');
+        document.getElementById('mainSearch').addEventListener('input', handleSearchAndFilter);
 
     </script>
 </body>
