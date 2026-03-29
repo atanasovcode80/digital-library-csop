@@ -3,269 +3,247 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ЦСОП "Леда Милева", гр. Долни Дъбник - Дигитална Библиотека</title>
+    <title>ЦСОП "Леда Милева" - Дигитална Библиотека</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
-        body { font-family: 'Ubuntu', sans-serif; background: #f8fafc; color: #0f172a; overflow-x: hidden; }
-        .main-gradient { background: linear-gradient(135deg, #1e40af 0%, #7e22ce 100%); }
-        .footer-gradient { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
-        .hero-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        .hero-card:hover { transform: translateY(-10px) scale(1.02); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2); }
-        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
-        .modal-active { display: flex !important; }
+        body { font-family: 'Ubuntu', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+        
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 9999; padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .header-top { background: #0f172a; color: white; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+        .header-main { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+        
+        .search-input { box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); border: none; }
+
+        .hero-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid #f1f5f9; }
+        .hero-card:hover { transform: translateY(-8px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05); }
         
         .filter-chip { display: none; }
         .filter-label { 
-            cursor: pointer; padding: 0.75rem 1.5rem; border-radius: 1rem; border: 2px solid #e2e8f0; 
-            font-weight: 700; font-size: 0.875rem; transition: all 0.3s; color: #64748b;
+            cursor: pointer; padding: 0.6rem 1.5rem; border-radius: 12px; border: 2px solid #e2e8f0; 
+            font-weight: 700; font-size: 0.75rem; transition: all 0.2s; color: #64748b; background: white;
+            display: flex; align-items: center; gap: 8px;
         }
-        .filter-chip:checked + .filter-label.therapy { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
-        .filter-chip:checked + .filter-label.education { border-color: #9333ea; color: #9333ea; background: #faf5ff; }
+        .filter-chip:checked + .filter-label.therapy { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; }
+        .filter-chip:checked + .filter-label.education { border-color: #8b5cf6; color: #8b5cf6; background: #f5f3ff; }
 
-        .category-card { transition: all 0.3s ease; }
-        .category-card:hover { transform: scale(1.03); border-color: #3b82f6; }
+        .footer-dark { background: #161e2e; color: #94a3b8; }
+        .footer-accent { color: #fbbf24; font-size: 2rem; font-weight: 800; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="flex flex-col">
 
-    <!-- Top Auth Bar -->
-    <div class="bg-slate-900 text-white py-2 px-6 flex justify-between items-center text-xs">
-        <div class="hidden sm:block opacity-60 font-medium italic uppercase tracking-wider">ЦСОП "Леда Милева", гр. Долни Дъбник</div>
-        <div class="flex items-center gap-4">
-            <span id="authStatusText" class="font-bold text-blue-400 uppercase tracking-tighter">Режим: Посетител</span>
-            <button id="loginBtn" onclick="toggleModal('loginModal')" class="hover:text-blue-400 font-bold uppercase transition">
-                <i class="fas fa-user-shield mr-1"></i> Вход
-            </button>
-            <button id="logoutBtn" onclick="logout()" class="hidden hover:text-red-400 font-bold uppercase transition">
-                <i class="fas fa-power-off mr-1"></i> Изход
-            </button>
+    <!-- Top Bar -->
+    <div class="header-top py-2 px-6">
+        <div class="container mx-auto flex justify-between items-center">
+            <div>ЦСОП "ЛЕДА МИЛЕВА", ГР. ДОЛНИ ДЪБНИК</div>
+            <div class="flex items-center gap-6">
+                <span id="roleBadge" class="opacity-80">РЕЖИМ: ПОСЕТИТЕЛ</span>
+                <button id="loginBtn" onclick="openModal('loginModal')" class="hover:text-white flex items-center gap-2">
+                    <i class="fas fa-user-lock"></i> ВХОД
+                </button>
+                <button id="logoutBtn" onclick="logout()" class="hidden text-red-400 hover:text-red-300 flex items-center gap-2">
+                    <i class="fas fa-sign-out-alt"></i> ИЗХОД
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Header -->
-    <header class="main-gradient text-white py-10 shadow-xl relative overflow-hidden">
-        <div class="container mx-auto px-6 relative z-10 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="flex flex-col md:flex-row items-center gap-6" onclick="exitSection()" style="cursor: pointer;">
-                <div class="bg-white p-4 rounded-3xl shadow-2xl">
-                    <i class="fas fa-book-open text-blue-600 text-5xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-3xl md:text-4xl font-black uppercase tracking-tight leading-tight">Дигитална Библиотека</h1>
-                    <p class="text-blue-100 font-medium opacity-90">ЦСОП "Леда Милева", гр. Долни Дъбник</p>
-                </div>
+    <!-- Header Section -->
+    <header class="header-main pt-12 pb-20 px-6 relative">
+        <div class="container mx-auto flex items-center gap-8">
+            <div class="bg-white p-4 rounded-3xl shadow-xl">
+                <i class="fas fa-book-open text-5xl text-blue-600"></i>
             </div>
+            <div>
+                <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-1 uppercase">Дигитална Библиотека</h1>
+                <p class="text-blue-100 text-lg opacity-90 font-medium">ЦСОП "Леда Милева", гр. Долни Дъбник</p>
+            </div>
+        </div>
 
-            <div id="adminControls" class="hidden flex flex-wrap justify-center gap-3">
-                <button id="btnNewCat" onclick="toggleModal('categoryModal')" class="hidden bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-bold shadow-lg transition transform hover:scale-105">
-                    <i class="fas fa-folder-plus mr-2"></i>Нова Категория
-                </button>
-                <button onclick="toggleModal('resourceModal')" class="bg-amber-400 hover:bg-amber-500 text-slate-900 px-6 py-3 rounded-2xl font-bold shadow-lg transition transform hover:scale-105">
-                    <i class="fas fa-plus-circle mr-2"></i>Добави Ресурс
-                </button>
+        <!-- Search Bar -->
+        <div class="container mx-auto px-6 absolute bottom-0 left-0 right-0 translate-y-1/2">
+            <div class="max-w-4xl mx-auto relative">
+                <i class="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-xl"></i>
+                <input type="text" id="mainSearch" placeholder="Търсете ресурс по име..." 
+                    class="w-full pl-16 pr-8 py-6 rounded-3xl bg-white search-input outline-none text-lg text-slate-700">
             </div>
         </div>
     </header>
 
-    <!-- Main Content Area -->
-    <main class="container mx-auto px-4 py-12 flex-grow">
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 pt-24 pb-20 flex-grow">
         
-        <!-- Search & Filter Bar (Only visible on home or results) -->
-        <div id="searchContainer" class="max-w-4xl mx-auto mb-16 px-4">
-            <div class="relative group mb-6">
-                <i class="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-xl"></i>
-                <input type="text" id="mainSearch" placeholder="Търсете ресурс по име..." 
-                    class="w-full pl-16 pr-8 py-5 rounded-3xl bg-white shadow-2xl border-none outline-none focus:ring-4 focus:ring-blue-500/20 text-lg transition-all">
-            </div>
-            
-            <div class="flex flex-wrap items-center justify-center gap-4">
-                <span class="text-xs font-black uppercase text-slate-400 tracking-widest mr-2">Търси в:</span>
-                <div class="flex gap-3">
-                    <input type="checkbox" id="filterTherapy" class="filter-chip" checked onchange="handleSearchAndFilter()">
-                    <label for="filterTherapy" class="filter-label therapy uppercase tracking-tight">
-                        <i class="fas fa-heart mr-2"></i> Терапия
-                    </label>
+        <!-- Filter Controls -->
+        <div id="searchControls" class="flex flex-col md:flex-row items-center justify-center gap-6 mb-12">
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Търси в:</span>
+            <div class="flex gap-4">
+                <input type="checkbox" id="filterTherapy" class="filter-chip" checked onchange="handleSearchAndFilter()">
+                <label for="filterTherapy" class="filter-label therapy">
+                    <i class="fas fa-heart"></i> ТЕРАПИЯ
+                </label>
 
-                    <input type="checkbox" id="filterEducation" class="filter-chip" checked onchange="handleSearchAndFilter()">
-                    <label for="filterEducation" class="filter-label education uppercase tracking-tight">
-                        <i class="fas fa-graduation-cap mr-2"></i> Обучение
-                    </label>
-                </div>
+                <input type="checkbox" id="filterEducation" class="filter-chip" checked onchange="handleSearchAndFilter()">
+                <label for="filterEducation" class="filter-label education">
+                    <i class="fas fa-graduation-cap"></i> ОБУЧЕНИЕ
+                </label>
             </div>
         </div>
 
-        <!-- VIEW 1: DASHBOARD (Main Sections) -->
-        <div id="view-dashboard" class="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-6xl mx-auto">
-            <div onclick="enterSection('therapy')" class="hero-card cursor-pointer group bg-white rounded-[2.5rem] p-10 flex flex-col items-center text-center shadow-lg hover:shadow-2xl border border-slate-100">
-                <div class="w-32 h-32 bg-blue-50 rounded-full flex items-center justify-center mb-8 group-hover:bg-blue-600 transition-colors duration-500">
-                    <i class="fas fa-hand-holding-heart text-5xl text-blue-600 group-hover:text-white transition-colors duration-500"></i>
+        <!-- Admin Actions -->
+        <div id="adminControls" class="hidden max-w-4xl mx-auto mb-10 flex justify-end gap-3">
+            <button id="btnNewCat" onclick="openModal('categoryModal')" class="hidden bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-2xl text-xs font-bold hover:bg-slate-50 transition shadow-sm uppercase">
+                + Нова Подкатегория
+            </button>
+            <button onclick="openModal('resourceModal')" class="bg-blue-600 text-white px-6 py-3 rounded-2xl text-xs font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 uppercase">
+                + Добави Ресурс
+            </button>
+        </div>
+
+        <!-- Views -->
+        <div id="view-dashboard" class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            <div onclick="enterSection('therapy')" class="hero-card cursor-pointer bg-white rounded-[40px] p-12 flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
+                    <i class="fas fa-brain text-4xl text-blue-600"></i>
                 </div>
-                <h2 class="text-4xl font-black text-slate-800 uppercase mb-4 tracking-tight">Терапия</h2>
-                <p class="text-slate-500 mb-8 max-w-xs">Ресурси за логопеди, психолози и терапевтични занимания.</p>
-                <div class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-md">Виж Подкатегориите</div>
-                <div id="stats-therapy" class="mt-6 text-xs font-bold text-slate-400 uppercase">0 подкатегории | 0 ресурса</div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">ТЕРАПИЯ</h2>
+                <div id="stats-therapy" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">0 категории | 0 ресурса</div>
             </div>
 
-            <div onclick="enterSection('education')" class="hero-card cursor-pointer group bg-white rounded-[2.5rem] p-10 flex flex-col items-center text-center shadow-lg hover:shadow-2xl border border-slate-100">
-                <div class="w-32 h-32 bg-purple-50 rounded-full flex items-center justify-center mb-8 group-hover:bg-purple-600 transition-colors duration-500">
-                    <i class="fas fa-user-graduate text-5xl text-purple-600 group-hover:text-white transition-colors duration-500"></i>
+            <div onclick="enterSection('education')" class="hero-card cursor-pointer bg-white rounded-[40px] p-12 flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-purple-50 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
+                    <i class="fas fa-school text-4xl text-purple-600"></i>
                 </div>
-                <h2 class="text-4xl font-black text-slate-800 uppercase mb-4 tracking-tight">Обучение</h2>
-                <p class="text-slate-500 mb-8 max-w-xs">Учебни материали, помагала и дигитални уроци.</p>
-                <div class="bg-purple-600 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-md">Виж Подкатегориите</div>
-                <div id="stats-education" class="mt-6 text-xs font-bold text-slate-400 uppercase">0 подкатегории | 0 ресурса</div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">ОБУЧЕНИЕ</h2>
+                <div id="stats-education" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">0 категории | 0 ресурса</div>
             </div>
         </div>
 
-        <!-- VIEW 2: SUBCATEGORY LIST -->
-        <div id="view-subcategories" class="hidden">
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-10 gap-4">
-                <button onclick="exitSection()" class="flex items-center gap-3 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold transition">
-                    <i class="fas fa-arrow-left"></i> Начало
+        <div id="view-subcategories" class="hidden max-w-5xl mx-auto">
+            <div class="flex items-center gap-6 mb-10">
+                <button onclick="exitSection()" class="w-12 h-12 flex items-center justify-center bg-white rounded-2xl hover:bg-slate-100 transition shadow-sm">
+                    <i class="fas fa-arrow-left text-slate-600"></i>
                 </button>
-                <div class="flex items-center gap-4">
-                    <h2 id="sectionTitle" class="text-3xl font-black uppercase text-slate-800 tracking-tight"></h2>
-                    <span id="sectionBadge" class="bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-black uppercase">Терапия</span>
-                </div>
+                <h2 id="sectionTitle" class="text-2xl font-black text-slate-800 uppercase"></h2>
             </div>
-
-            <div id="subcategoryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Subcategories load here -->
-            </div>
+            <div id="subcategoryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
 
-        <!-- VIEW 3: RESOURCE LIST (Deep Level) -->
-        <div id="view-resources" class="hidden">
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-10 gap-4">
-                <button onclick="goBackToSubcategories()" class="flex items-center gap-3 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold transition">
-                    <i class="fas fa-arrow-left"></i> Обратно към Подкатегории
+        <div id="view-resources" class="hidden max-w-5xl mx-auto">
+            <div class="flex items-center gap-6 mb-10">
+                <button onclick="goBackToSubcategories()" class="w-12 h-12 flex items-center justify-center bg-white rounded-2xl hover:bg-slate-100 transition shadow-sm">
+                    <i class="fas fa-arrow-left text-slate-600"></i>
                 </button>
-                <h2 id="activeSubcatTitle" class="text-2xl font-black uppercase text-slate-800 tracking-tight text-center"></h2>
+                <h2 id="activeSubcatTitle" class="text-2xl font-bold text-slate-800"></h2>
             </div>
-
-            <div id="resourceGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Resources load here -->
-            </div>
+            <div id="resourceGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         </div>
 
-        <!-- Search Results View (Global Search) -->
-        <div id="view-search-results" class="hidden">
-            <div class="flex justify-between items-center mb-10">
-                <button onclick="exitSection()" class="flex items-center gap-3 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold transition">
-                    <i class="fas fa-times"></i> Изчисти търсенето
-                </button>
-                <h2 class="text-2xl font-black uppercase text-slate-800 tracking-tight">Резултати от търсене</h2>
-            </div>
-            <div id="searchGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+        <div id="view-search-results" class="hidden max-w-5xl mx-auto">
+            <h2 class="text-xs font-black text-slate-400 mb-8 text-center uppercase tracking-[0.3em]">Резултати от търсенето</h2>
+            <div id="searchGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         </div>
 
-        <!-- No Results -->
-        <div id="noResults" class="hidden text-center py-24 opacity-30">
-            <i class="fas fa-box-open text-7xl mb-4"></i>
-            <h3 class="text-2xl font-bold uppercase">Няма намерени материали</h3>
+        <div id="noResults" class="hidden text-center py-20">
+            <i class="fas fa-folder-open text-5xl text-slate-200 mb-4 block"></i>
+            <p class="text-slate-400 italic">Няма намерени резултати за Вашето търсене.</p>
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="footer-gradient text-white py-16 border-t-4 border-amber-400">
-        <div class="container mx-auto px-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-12 items-center">
-                <div class="text-center lg:text-left space-y-4">
-                    <div class="flex items-center justify-center lg:justify-start gap-4 mb-4">
-                        <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
-                            <i class="fas fa-school text-amber-400"></i>
+    <!-- Footer Section -->
+    <footer class="footer-dark pt-16 pb-8 px-6 mt-auto">
+        <div class="container mx-auto">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-12 border-b border-slate-800 pb-12 mb-8">
+                <div class="flex gap-6 items-center">
+                    <div class="bg-slate-800 p-4 rounded-2xl text-amber-400 shadow-lg">
+                        <i class="fas fa-university text-3xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white mb-2 uppercase tracking-wide">ЦСОП "Леда Милева"</h3>
+                        <div class="flex flex-col gap-1">
+                            <p class="text-sm flex items-center gap-2"><i class="fas fa-map-marker-alt text-amber-400"></i> гр. Долни Дъбник</p>
+                            <p class="text-sm flex items-center gap-2"><i class="fas fa-envelope text-amber-400"></i> info-1500510@edu.mon.bg</p>
                         </div>
-                        <h4 class="text-xl font-black uppercase tracking-tight">ЦСОП "Леда Милева"</h4>
-                    </div>
-                    <div class="space-y-2">
-                        <p class="text-slate-400 text-sm leading-relaxed max-w-sm mx-auto lg:mx-0 font-medium">
-                            <i class="fas fa-map-marker-alt text-amber-400 mr-2"></i>гр. Долни Дъбник
-                        </p>
-                        <p class="text-slate-400 text-sm leading-relaxed max-w-sm mx-auto lg:mx-0 font-medium hover:text-white transition">
-                            <i class="fas fa-envelope text-amber-400 mr-2"></i>info-1500510@edu.mon.bg
-                        </p>
                     </div>
                 </div>
 
-                <div class="flex flex-col items-center gap-6">
-                    <div class="flex flex-wrap justify-center gap-8 font-black uppercase text-xs tracking-[0.2em] text-slate-400">
-                        <a href="https://csop-lm.eu/" target="_blank" class="hover:text-amber-400 transition flex items-center gap-2">
-                             Уебсайт <i class="fas fa-external-link-alt text-[10px]"></i>
-                        </a>
-                        <a href="https://www.facebook.com/ledamileva" target="_blank" class="hover:text-blue-400 transition flex items-center gap-2 text-lg">
-                             <i class="fab fa-facebook"></i> Facebook
-                        </a>
-                    </div>
+                <div class="flex flex-wrap gap-8 font-bold text-xs uppercase tracking-widest">
+                    <!-- Обновени линкове -->
+                    <a href="https://csop-lm.eu/" target="_blank" class="hover:text-white transition flex items-center gap-2">
+                        УЕБСАЙТ <i class="fas fa-external-link-alt text-[10px]"></i>
+                    </a>
+                    <a href="https://www.facebook.com/ledamileva" target="_blank" class="hover:text-blue-400 transition flex items-center gap-2">
+                        <i class="fab fa-facebook text-lg"></i> FACEBOOK
+                    </a>
                 </div>
 
-                <div class="flex flex-col items-center lg:items-end">
-                    <div class="text-center lg:text-right">
-                        <div class="text-5xl font-black text-amber-400 mb-1" id="yearLabel"></div>
-                        <div class="text-[10px] uppercase font-black tracking-[0.3em] text-slate-500 italic">Дигитално Хранилище</div>
-                    </div>
+                <div class="text-right">
+                    <div class="footer-accent">2026</div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">ДИГИТАЛНО ХРАНИЛИЩЕ</p>
                 </div>
+            </div>
+            <div class="text-center text-[10px] font-bold opacity-30 uppercase tracking-widest">
+                Всички права запазени &copy; Център за специална образователна подкрепа "Леда Милева"
             </div>
         </div>
     </footer>
 
-    <!-- MODALS -->
-    <!-- Login Modal -->
-    <div id="loginModal" class="fixed inset-0 glass hidden z-[200] items-center justify-center p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden">
-            <div class="p-10 text-center">
-                <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                    <i class="fas fa-lock text-3xl"></i>
+    <!-- Modals -->
+    <div id="loginModal" class="modal-overlay" onclick="closeModalOnOutsideClick(event, 'loginModal')">
+        <div class="bg-white rounded-[32px] w-full max-w-[380px] p-10 shadow-2xl">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <i class="fas fa-shield-alt text-2xl text-slate-800"></i>
                 </div>
-                <h3 class="text-2xl font-black text-slate-800 mb-6 uppercase tracking-tight">Вход в системата</h3>
-                <input type="password" id="passInput" placeholder="Парола..." class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-blue-500/10 mb-4 transition-all">
-                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold uppercase shadow-xl hover:bg-blue-700 transition">Потвърди</button>
-                <button onclick="toggleModal('loginModal')" class="mt-4 text-slate-400 text-sm font-bold uppercase tracking-wider">Отказ</button>
+                <h3 class="text-xl font-bold text-slate-800 mb-2 uppercase">Вход за персонал</h3>
+                <p class="text-slate-400 text-xs mb-8">Въведете парола за достъп</p>
+                <input type="password" id="passInput" placeholder="Парола" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-4 focus:ring-blue-500/10 mb-6 text-center text-lg">
+                <button onclick="handleLogin()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold hover:bg-black transition shadow-xl uppercase">Влез</button>
+                <button onclick="closeModal('loginModal')" class="mt-6 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-slate-600">Отказ</button>
             </div>
         </div>
     </div>
 
-    <!-- Category Modal -->
-    <div id="categoryModal" class="fixed inset-0 glass hidden z-[200] items-center justify-center p-4">
-        <div class="bg-white rounded-[2rem] w-full max-w-md shadow-2xl p-8">
-            <h3 class="text-xl font-black uppercase text-slate-800 border-b pb-6 mb-6">Нова Подкатегория</h3>
+    <div id="categoryModal" class="modal-overlay" onclick="closeModalOnOutsideClick(event, 'categoryModal')">
+        <div class="bg-white rounded-[32px] w-full max-w-md p-10 shadow-2xl">
+            <h3 class="text-xl font-bold text-slate-800 mb-8 uppercase">Нова Подкатегория</h3>
             <form id="categoryForm" class="space-y-6">
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Име на подкатегорията</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Име</label>
                     <input type="text" name="catName" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
                 </div>
                 <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Главна Секция</label>
-                    <select name="mainSection" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold">
-                        <option value="therapy">Терапия</option>
-                        <option value="education">Обучение</option>
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Раздел</label>
+                    <select name="mainSection" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold text-slate-600">
+                        <option value="therapy">ТЕРАПИЯ</option>
+                        <option value="education">ОБУЧЕНИЕ</option>
                     </select>
                 </div>
-                <button type="submit" class="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold uppercase shadow-lg hover:bg-emerald-600 transition">Създай</button>
-                <button type="button" onclick="toggleModal('categoryModal')" class="w-full text-slate-400 text-xs font-black uppercase mt-4">Затвори</button>
+                <button type="submit" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold hover:bg-black transition uppercase text-sm shadow-xl">Създай</button>
             </form>
         </div>
     </div>
 
-    <!-- Resource Modal -->
-    <div id="resourceModal" class="fixed inset-0 glass hidden z-[200] items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl my-8">
-            <div class="p-8 border-b"><h3 class="text-xl font-black uppercase text-slate-800">Добавяне на Ресурс</h3></div>
-            <form id="resourceForm" class="p-8 space-y-6">
-                <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Заглавие</label>
-                    <input type="text" name="resTitle" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
+    <div id="resourceModal" class="modal-overlay" onclick="closeModalOnOutsideClick(event, 'resourceModal')">
+        <div class="bg-white rounded-[32px] w-full max-w-lg p-10 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <h3 class="text-xl font-bold text-slate-800 mb-8 uppercase">Добавяне на Ресурс</h3>
+            <form id="resourceForm" class="space-y-6">
+                <input type="text" name="resTitle" placeholder="Заглавие на учебния материал" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
+                <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Причисли към:</p>
+                    <div id="subCatCheckboxes" class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2"></div>
                 </div>
-                <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Избери Подкатегории</label>
-                    <div id="subCatCheckboxes" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 bg-slate-50 rounded-2xl"></div>
-                </div>
-                <div>
-                    <label class="block text-xs font-black uppercase text-slate-400 mb-2">Линк към ресурса</label>
-                    <input type="url" name="resLink" required placeholder="https://..." class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
-                </div>
-                <button type="submit" class="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 py-4 rounded-2xl font-bold uppercase shadow-xl transition">Добави</button>
-                <button type="button" onclick="toggleModal('resourceModal')" class="w-full text-slate-400 text-xs font-black uppercase mt-4">Отказ</button>
+                <input type="url" name="resLink" placeholder="Линк (Google Drive, YouTube и др.)" required class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none">
+                <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition uppercase text-sm shadow-xl">Запиши</button>
+                <button type="button" onclick="closeModal('resourceModal')" class="w-full text-slate-400 text-[10px] font-black uppercase tracking-widest mt-4">Затвори</button>
             </form>
         </div>
     </div>
@@ -289,13 +267,16 @@
         const colCat = collection(db, "subcategories");
 
         let currentRole = 'visitor';
-        let activeSection = null; 
+        let activeSection = null;
         let activeSubcatId = null;
         let categories = [];
         let resources = [];
 
+        window.openModal = (id) => { document.getElementById(id).classList.add('active'); document.body.style.overflow = 'hidden'; };
+        window.closeModal = (id) => { document.getElementById(id).classList.remove('active'); document.body.style.overflow = 'auto'; };
+        window.closeModalOnOutsideClick = (e, id) => { if (e.target.id === id) closeModal(id); };
+
         window.onload = () => {
-            document.getElementById('yearLabel').innerText = new Date().getFullYear();
             initData();
         };
 
@@ -304,7 +285,6 @@
                 categories = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 renderAll();
             });
-
             onSnapshot(query(colRes, orderBy("timestamp", "desc")), (snap) => {
                 resources = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 renderAll();
@@ -322,32 +302,27 @@
         function renderStats() {
             const tCat = categories.filter(c => c.main === 'therapy').length;
             const eCat = categories.filter(c => c.main === 'education').length;
-            const tRes = resources.filter(r => (r.subIds || []).some(id => categories.find(c => c.id === id)?.main === 'therapy')).length;
-            const eRes = resources.filter(r => (r.subIds || []).some(id => categories.find(c => c.id === id)?.main === 'education')).length;
-
-            document.getElementById('stats-therapy').innerText = `${tCat} подкатегории | ${tRes} ресурса`;
-            document.getElementById('stats-education').innerText = `${eCat} подкатегории | ${eRes} ресурса`;
+            const tRes = resources.filter(r => (r.subIds || []).some(sid => categories.find(c => c.id === sid && c.main === 'therapy'))).length;
+            const eRes = resources.filter(r => (r.subIds || []).some(sid => categories.find(c => c.id === sid && c.main === 'education'))).length;
+            
+            document.getElementById('stats-therapy').innerText = `${tCat} категории | ${tRes} ресурса`;
+            document.getElementById('stats-education').innerText = `${eCat} категории | ${eRes} ресурса`;
         }
 
-        // VIEW NAVIGATION
         window.enterSection = (sec) => {
             activeSection = sec;
             activeSubcatId = null;
             hideAllViews();
             document.getElementById('view-subcategories').classList.remove('hidden');
-            document.getElementById('sectionTitle').innerText = sec === 'therapy' ? 'Секция Терапия' : 'Секция Обучение';
-            document.getElementById('sectionBadge').innerText = sec === 'therapy' ? 'Терапия' : 'Обучение';
-            document.getElementById('sectionBadge').className = sec === 'therapy' ? 'bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-black uppercase' : 'bg-purple-100 text-purple-700 px-4 py-1 rounded-full text-xs font-black uppercase';
+            document.getElementById('sectionTitle').innerText = sec === 'therapy' ? 'Раздел: Терапия' : 'Раздел: Обучение';
             renderSubcategories();
         };
 
         window.exitSection = () => {
-            activeSection = null;
-            activeSubcatId = null;
+            activeSection = null; activeSubcatId = null;
             document.getElementById('mainSearch').value = '';
             hideAllViews();
             document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('searchContainer').classList.remove('hidden');
         };
 
         window.enterSubcategory = (catId, catName) => {
@@ -362,33 +337,27 @@
             activeSubcatId = null;
             hideAllViews();
             document.getElementById('view-subcategories').classList.remove('hidden');
-            renderSubcategories();
         };
 
         function hideAllViews() {
             ['view-dashboard', 'view-subcategories', 'view-resources', 'view-search-results', 'noResults'].forEach(id => {
-                document.getElementById(id).classList.add('hidden');
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
             });
         }
 
-        // RENDERING LOGIC
         function renderSubcategories() {
             const grid = document.getElementById('subcategoryGrid');
             const filteredCats = categories.filter(c => c.main === activeSection);
-            
             grid.innerHTML = filteredCats.map(c => {
                 const count = resources.filter(r => (r.subIds || []).includes(c.id)).length;
-                const colorClass = activeSection === 'therapy' ? 'border-l-blue-500 hover:bg-blue-50' : 'border-l-purple-500 hover:bg-purple-50';
-                
                 return `
-                    <div onclick="enterSubcategory('${c.id}', '${c.name}')" class="category-card cursor-pointer bg-white p-6 rounded-2xl shadow-sm border border-slate-100 border-l-8 ${colorClass} flex flex-col justify-between">
+                    <div onclick="enterSubcategory('${c.id}', '${c.name}')" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center group cursor-pointer hover:shadow-md transition-all">
                         <div>
-                            <h3 class="font-bold text-slate-800 uppercase tracking-tight mb-2">${c.name}</h3>
-                            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${count} ресурса</div>
+                            <h3 class="font-bold text-slate-700 text-sm uppercase tracking-wide">${c.name}</h3>
+                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-tighter mt-1">${count} налични материала</p>
                         </div>
-                        <div class="mt-4 flex justify-end">
-                            <i class="fas fa-chevron-right text-slate-300"></i>
-                        </div>
+                        <i class="fas fa-chevron-right text-slate-200 group-hover:text-blue-500 transition-all translate-x-0 group-hover:translate-x-1"></i>
                     </div>
                 `;
             }).join('');
@@ -397,92 +366,65 @@
         function renderResourcesForSubcat() {
             const grid = document.getElementById('resourceGrid');
             const filteredRes = resources.filter(r => (r.subIds || []).includes(activeSubcatId));
-            
-            if (filteredRes.length === 0) {
-                grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-400 italic">Все още няма добавени материали в тази подкатегория.</div>';
-                return;
-            }
-
-            grid.innerHTML = filteredRes.map(r => resourceCardHtml(r)).join('');
+            grid.innerHTML = filteredRes.length === 0 ? '<div class="col-span-full py-10 text-slate-300 italic text-center">Все още няма добавени материали тук.</div>' : filteredRes.map(r => resourceCardHtml(r)).join('');
         }
 
         function resourceCardHtml(r) {
             return `
-                <div class="bg-white rounded-2xl p-6 shadow-md border border-slate-100 flex flex-col justify-between hover:shadow-lg transition-all">
-                    <div>
+                <div class="bg-white rounded-[32px] p-6 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-xl transition-all group">
+                    <div class="mb-6">
                         <div class="flex justify-between items-start mb-4">
-                             <div class="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
-                                <i class="fas fa-file-alt"></i>
+                             <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                                <i class="fas fa-file-pdf text-slate-300 group-hover:text-blue-500"></i>
                              </div>
-                             ${currentRole === 'superadmin' ? `
-                                <button onclick="deleteResource('${r.id}')" class="text-slate-300 hover:text-red-500 transition">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                             ` : ''}
+                             ${currentRole === 'superadmin' ? `<button onclick="deleteResource('${r.id}')" class="text-slate-200 hover:text-red-500 transition"><i class="fas fa-trash-alt"></i></button>` : ''}
                         </div>
-                        <h4 class="font-bold text-slate-800 leading-snug mb-6">${r.title}</h4>
+                        <h4 class="font-bold text-slate-700 text-xs leading-relaxed uppercase tracking-tight">${r.title}</h4>
                     </div>
-                    <a href="${r.link}" target="_blank" class="w-full py-3 bg-slate-100 hover:bg-slate-900 hover:text-white rounded-xl text-slate-600 font-bold text-sm transition-all text-center">
-                        Отвори
-                    </a>
+                    <a href="${r.link}" target="_blank" rel="noopener noreferrer" class="w-full py-3 bg-slate-50 hover:bg-blue-600 hover:text-white rounded-2xl text-slate-500 font-bold text-[10px] uppercase transition-all text-center tracking-widest">ОТВОРИ</a>
                 </div>
             `;
         }
 
-        // GLOBAL SEARCH HANDLER
         window.handleSearchAndFilter = () => {
             const search = document.getElementById('mainSearch').value.toLowerCase().trim();
-            const allowTherapy = document.getElementById('filterTherapy').checked;
-            const allowEducation = document.getElementById('filterEducation').checked;
-
-            if (search.length < 1) {
-                if (!activeSection) {
-                    hideAllViews();
-                    document.getElementById('view-dashboard').classList.remove('hidden');
-                }
-                return;
+            if (search.length < 1) { 
+                if (!activeSection) { hideAllViews(); document.getElementById('view-dashboard').classList.remove('hidden'); }
+                return; 
             }
-
             hideAllViews();
             document.getElementById('view-search-results').classList.remove('hidden');
+            const allowT = document.getElementById('filterTherapy').checked;
+            const allowE = document.getElementById('filterEducation').checked;
             
             const results = resources.filter(r => {
-                const matchesSearch = r.title.toLowerCase().includes(search);
-                const subIds = r.subIds || [];
-                const inAllowedSection = subIds.some(sid => {
-                    const cat = categories.find(c => c.id === sid);
-                    if(!cat) return false;
-                    return (cat.main === 'therapy' && allowTherapy) || (cat.main === 'education' && allowEducation);
+                const match = r.title.toLowerCase().includes(search);
+                const sectionMatch = (r.subIds || []).some(sid => {
+                    const c = categories.find(cat => cat.id === sid);
+                    return c && ((c.main === 'therapy' && allowT) || (c.main === 'education' && allowE));
                 });
-                return matchesSearch && inAllowedSection;
+                return match && sectionMatch;
             });
 
             const grid = document.getElementById('searchGrid');
-            if (results.length === 0) {
-                grid.innerHTML = '';
-                document.getElementById('noResults').classList.remove('hidden');
-            } else {
-                grid.innerHTML = results.map(r => resourceCardHtml(r)).join('');
-            }
+            grid.innerHTML = results.map(r => resourceCardHtml(r)).join('');
+            document.getElementById('noResults').classList.toggle('hidden', results.length > 0);
         };
 
-        // ADMIN ACTIONS
         window.handleLogin = () => {
             const pass = document.getElementById('passInput').value;
-            const status = document.getElementById('authStatusText');
-            const controls = document.getElementById('adminControls');
             if (pass === 'As800224@') {
                 currentRole = 'superadmin';
-                status.innerText = 'Режим: Super Admin';
-                controls.classList.remove('hidden');
+                document.getElementById('adminControls').classList.remove('hidden');
                 document.getElementById('btnNewCat').classList.remove('hidden');
-                toggleModal('loginModal');
+                document.getElementById('roleBadge').innerText = 'РЕЖИМ: ГЛАВЕН АДМИНИСТРАТОР';
+                closeModal('loginModal');
             } else if (pass === '1500510') {
                 currentRole = 'admin';
-                status.innerText = 'Режим: Admin';
-                controls.classList.remove('hidden');
-                toggleModal('loginModal');
-            } else { alert('Грешна парола!'); }
+                document.getElementById('adminControls').classList.remove('hidden');
+                document.getElementById('roleBadge').innerText = 'РЕЖИМ: РЕДАКТОР';
+                closeModal('loginModal');
+            } else { alert('Грешна парола!'); return; }
             document.getElementById('loginBtn').classList.add('hidden');
             document.getElementById('logoutBtn').classList.remove('hidden');
             renderAll();
@@ -494,37 +436,30 @@
             e.preventDefault();
             const fd = new FormData(e.target);
             await addDoc(colCat, { name: fd.get('catName'), main: fd.get('mainSection') });
-            e.target.reset();
-            toggleModal('categoryModal');
+            e.target.reset(); closeModal('categoryModal');
         };
 
         document.getElementById('resourceForm').onsubmit = async (e) => {
             e.preventDefault();
             const fd = new FormData(e.target);
-            const selectedCats = Array.from(document.querySelectorAll('input[name="catCheck"]:checked')).map(el => el.value);
-            if(selectedCats.length === 0) return alert('Изберете категория!');
-            await addDoc(colRes, { title: fd.get('resTitle'), subIds: selectedCats, link: fd.get('resLink'), timestamp: serverTimestamp() });
-            e.target.reset();
-            toggleModal('resourceModal');
+            const subIds = Array.from(document.querySelectorAll('input[name="catCheck"]:checked')).map(el => el.value);
+            if(!subIds.length) return alert('Изберете поне една подкатегория!');
+            await addDoc(colRes, { title: fd.get('resTitle'), subIds, link: fd.get('resLink'), timestamp: serverTimestamp() });
+            e.target.reset(); closeModal('resourceModal');
         };
 
-        window.deleteResource = async (id) => {
-            if(confirm('Изтриване?')) await deleteDoc(doc(db, "resources", id));
-        };
+        window.deleteResource = async (id) => { if(confirm('Сигурни ли сте?')) await deleteDoc(doc(db, "resources", id)); };
 
         function updateFormCategories() {
-            const container = document.getElementById('subCatCheckboxes');
-            container.innerHTML = categories.map(c => `
-                <div class="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100">
-                    <input type="checkbox" name="catCheck" value="${c.id}" id="chk-${c.id}">
-                    <label for="chk-${c.id}" class="text-[10px] font-bold text-slate-600 uppercase truncate">${c.name}</label>
-                </div>
+            document.getElementById('subCatCheckboxes').innerHTML = categories.map(c => `
+                <label class="flex items-center gap-2 p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:bg-blue-50 transition-colors">
+                    <input type="checkbox" name="catCheck" value="${c.id}" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                    <span class="text-[9px] font-bold text-slate-600 uppercase truncate">${c.name}</span>
+                </label>
             `).join('');
         }
 
-        window.toggleModal = (id) => document.getElementById(id).classList.toggle('hidden');
         document.getElementById('mainSearch').addEventListener('input', handleSearchAndFilter);
-
     </script>
 </body>
 </html>
