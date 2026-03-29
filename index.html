@@ -3,207 +3,237 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Библиотека Ресурси - ЦСОП</title>
-    
-    <!-- Външни библиотеки -->
+    <title>Дигитална Библиотека | ЦСОП</title>
+    <!-- Tailwind CSS за модерен дизайн -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
+    <!-- FontAwesome за икони -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background-color: #f1f5f9; font-family: sans-serif; }
-        .loader { border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
+        
+        body { 
+            font-family: 'Montserrat', sans-serif; 
+            background-color: #f1f5f9;
+        }
+
+        .book-card {
+            transition: all 0.3s ease;
+            border-radius: 1.5rem;
+        }
+
+        .book-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .gradient-header {
+            background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+        }
+
+        .loader-spin {
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal-show {
+            display: flex !important;
+        }
     </style>
 </head>
-<body>
-    <div id="root">
-        <div style="display: flex; height: 100vh; align-items: center; justify-content: center; flex-direction: column;">
-            <div class="loader"></div>
-            <p style="margin-top: 15px; color: #64748b; font-weight: bold;">Зареждане на интерфейса...</p>
-        </div>
-    </div>
+<body class="min-h-screen flex flex-col">
 
-    <script type="text/babel">
-        // ====================================================================
-        // СТЪПКА 1: ВЪВЕДЕТЕ ВАШИТЕ FIREBASE ДАННИ ТУК (За GitHub Pages)
-        // Вземете ги от Project Overview -> Project Settings -> General -> Your apps
-        // ====================================================================
-        const myGithubFirebaseConfig = {
-            apiKey: "",           // Напр: "AIzaSyDOCAbC123..."
-            authDomain: "",       // Напр: "digital-library-csop.firebaseapp.com"
-            projectId: "",        // Напр: "digital-library-csop"
-            storageBucket: "",
-            messagingSenderId: "",
-            appId: ""
+    <!-- Хедър -->
+    <header class="gradient-header text-white shadow-xl p-6 mb-8">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-4">
+                <div class="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
+                    <i class="fas fa-book text-3xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Библиотека ЦСОП</h1>
+                    <p class="text-blue-100 text-sm font-medium">Дигитални ресурси и книги</p>
+                </div>
+            </div>
+            <button id="openModalBtn" class="bg-white text-blue-700 font-bold py-3 px-8 rounded-2xl shadow-lg hover:bg-blue-50 transition active:scale-95 flex items-center gap-2">
+                <i class="fas fa-plus-circle"></i> Добави Книга
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 flex-grow pb-12">
+        
+        <!-- Модална форма за добавяне -->
+        <div id="addBookModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+            <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div class="bg-blue-600 p-6 text-white flex justify-between items-center">
+                    <h2 class="text-xl font-bold">Нова книга</h2>
+                    <button id="closeModalBtn" class="text-white/80 hover:text-white transition">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                <div class="p-8 space-y-5">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Заглавие</label>
+                        <input type="text" id="titleInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Пример: Под игото">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Автор</label>
+                        <input type="text" id="authorInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Пример: Иван Вазов">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Линк към корица (URL)</label>
+                        <input type="text" id="coverInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="https://example.com/image.jpg">
+                    </div>
+                    <button id="saveBookBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition duration-300">
+                        Запази в каталога
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Индикатор за зареждане -->
+        <div id="loadingIndicator" class="flex flex-col items-center justify-center py-24">
+            <div class="loader-spin rounded-full border-4 border-gray-200 h-14 w-14 mb-4"></div>
+            <p class="text-gray-500 font-semibold italic">Свързване с библиотеката...</p>
+        </div>
+
+        <!-- Мрежа с книги -->
+        <div id="booksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <!-- Книгите ще се заредят тук динамично -->
+        </div>
+
+        <!-- Празно състояние -->
+        <div id="emptyState" class="hidden text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
+            <i class="fas fa-folder-open text-6xl text-gray-200 mb-6"></i>
+            <h3 class="text-xl font-bold text-gray-400">Библиотеката е празна</h3>
+            <p class="text-gray-400 mt-2">Добавете първата книга, за да започнете.</p>
+        </div>
+    </main>
+
+    <!-- Футър -->
+    <footer class="bg-white border-t border-gray-100 py-10 text-center text-gray-400 text-sm">
+        <div class="container mx-auto">
+            <p class="font-bold text-gray-500 mb-2">ЦСОП „Леда Милева“</p>
+            <p>&copy; 2024 Дигитална Библиотека. Всички права запазени.</p>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK (Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        // Твоята Firebase конфигурация
+        const firebaseConfig = {
+            apiKey: "AIzaSyDMUx2UvYY26wU5WZ33Cy6S--Rwl2ZOUcY",
+            authDomain: "digital-library-csop.firebaseapp.com",
+            projectId: "digital-library-csop",
+            storageBucket: "digital-library-csop.firebasestorage.app",
+            messagingSenderId: "277590147002",
+            appId: "1:277590147002:web:1b179531c66cef742e2783"
         };
 
-        // Логика за безопасно зареждане на конфигурацията
-        let firebaseConfig = null;
-        let activeAppId = 'digital-library'; 
-        let isConfigured = false;
+        // Инициализиране
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const booksRef = collection(db, "books");
 
-        try {
-            // Проверява дали се намираме в Canvas средата (тук)
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
-                activeAppId = typeof __app_id !== 'undefined' ? __app_id : activeAppId;
-                isConfigured = true;
-            } 
-            // Ако сме в GitHub Pages и сте попълнили данните горе
-            else if (myGithubFirebaseConfig.apiKey !== "") {
-                firebaseConfig = myGithubFirebaseConfig;
-                isConfigured = true;
+        // UI Елементи
+        const booksGrid = document.getElementById('booksGrid');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const emptyState = document.getElementById('emptyState');
+        const bookModal = document.getElementById('addBookModal');
+
+        // Контрол на модала
+        document.getElementById('openModalBtn').onclick = () => bookModal.classList.add('modal-show');
+        document.getElementById('closeModalBtn').onclick = () => bookModal.classList.remove('modal-show');
+        
+        // Затваряне при клик извън формата
+        window.onclick = (e) => {
+            if (e.target == bookModal) bookModal.classList.remove('modal-show');
+        };
+
+        // Запазване на нова книга
+        document.getElementById('saveBookBtn').onclick = async () => {
+            const title = document.getElementById('titleInput').value.trim();
+            const author = document.getElementById('authorInput').value.trim();
+            const cover = document.getElementById('coverInput').value.trim() || 'https://images.unsplash.com/photo-1543005120-a1bb3ea0b6cb?w=600';
+
+            if (!title || !author) {
+                alert("Моля, попълнете заглавие и автор!");
+                return;
             }
-        } catch (e) {
-            console.error("Грешка при четене на конфигурацията:", e);
-        }
 
-        // Инициализация на Firebase САМО ако имаме конфигурация
-        let db = null;
-        let auth = null;
-        if (isConfigured) {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
+            try {
+                await addDoc(booksRef, {
+                    title: title,
+                    author: author,
+                    cover: cover,
+                    createdAt: serverTimestamp()
+                });
+                
+                // Изчистване и затваряне
+                document.getElementById('titleInput').value = '';
+                document.getElementById('authorInput').value = '';
+                document.getElementById('coverInput').value = '';
+                bookModal.classList.remove('modal-show');
+            } catch (err) {
+                console.error("Грешка при запис:", err);
+                alert("Неуспешно записване. Проверете Firestore Rules.");
             }
-            db = firebase.firestore();
-            auth = firebase.auth();
-        }
+        };
 
-        function App() {
-            // Ако липсва конфигурация (напр. току-що качено в GitHub без ключове)
-            if (!isConfigured) {
-                return (
-                    <div className="flex flex-col h-screen items-center justify-center p-6 bg-slate-100">
-                        <div className="bg-white p-8 rounded-2xl shadow-lg border border-red-200 max-w-lg text-center">
-                            <h2 className="text-2xl font-bold text-red-500 mb-4">Липсва Firebase конфигурация!</h2>
-                            <p className="text-slate-600 mb-4">
-                                За да работи приложението в GitHub Pages, трябва да отворите файла <strong>index.html</strong> с текстов редактор и да попълните вашите ключове в обекта <code>myGithubFirebaseConfig</code> на ред 38.
-                            </p>
-                            <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded">
-                                Можете да ги намерите във Firebase конзолата: Project Settings ➔ General ➔ Your apps.
-                            </p>
+        // Слушане за данни в реално време
+        const q = query(booksRef, orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            loadingIndicator.style.display = 'none';
+            booksGrid.innerHTML = '';
+            
+            if (snapshot.empty) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            snapshot.forEach((bookDoc) => {
+                const data = bookDoc.data();
+                const bookCard = document.createElement('div');
+                bookCard.className = "book-card bg-white overflow-hidden shadow-sm border border-gray-100 flex flex-col h-full";
+                
+                bookCard.innerHTML = `
+                    <div class="relative h-64 overflow-hidden group">
+                        <img src="${data.cover}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onerror="this.src='https://images.unsplash.com/photo-1543005120-a1bb3ea0b6cb?w=600'">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button onclick="window.deleteBook('${bookDoc.id}')" class="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition shadow-xl">
+                                <i class="fas fa-trash-alt text-lg"></i>
+                            </button>
                         </div>
                     </div>
-                );
-            }
-
-            const [resources, setResources] = React.useState([]);
-            const [loading, setLoading] = React.useState(true);
-            const [user, setUser] = React.useState(null);
-            const [errorMsg, setErrorMsg] = React.useState(null);
-
-            React.useEffect(() => {
-                const setup = async () => {
-                    try {
-                        // 1. Анонимно вписване
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-
-                        auth.onAuthStateChanged((currentUser) => {
-                            if (currentUser) {
-                                setUser(currentUser);
-                                
-                                // 2. Зареждане на данни от Firestore
-                                // Опростен път до колекцията за по-лесно управление
-                                const collectionPath = typeof __firebase_config !== 'undefined' 
-                                    ? `artifacts/${activeAppId}/public/data/resources` // Път за Canvas
-                                    : `resources`; // Опростен път за вашия собствен Firebase проект
-
-                                const unsubscribe = db.collection(collectionPath).onSnapshot(
-                                    (snapshot) => {
-                                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                                        setResources(data);
-                                        setLoading(false);
-                                    },
-                                    (err) => {
-                                        console.error("Грешка от базата данни:", err);
-                                        setErrorMsg("Нямате права за достъп до базата данни. Моля, публикувайте правилата във Firebase.");
-                                        setLoading(false);
-                                    }
-                                );
-                                
-                                return () => unsubscribe();
-                            }
-                        });
-
-                    } catch (err) {
-                        console.error("Грешка при инициализация:", err);
-                        setErrorMsg(err.message);
-                        setLoading(false);
-                    }
-                };
-
-                setup();
-            }, []);
-
-            if (errorMsg) {
-                return (
-                    <div className="flex h-screen items-center justify-center p-6 text-center">
-                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-red-200 max-w-md">
-                            <p className="text-red-600 font-bold mb-2 text-lg">Възникна проблем</p>
-                            <p className="text-slate-600">{errorMsg}</p>
-                            <button onClick={() => window.location.reload()} className="mt-4 bg-slate-800 text-white px-4 py-2 rounded hover:bg-slate-700">Опитай отново</button>
-                        </div>
+                    <div class="p-6 flex-grow">
+                        <h3 class="font-bold text-xl text-gray-800 leading-tight mb-2">${data.title}</h3>
+                        <p class="text-blue-600 font-bold text-sm uppercase tracking-widest">${data.author}</p>
                     </div>
-                );
+                `;
+                booksGrid.appendChild(bookCard);
+            });
+        });
+
+        // Функция за изтриване
+        window.deleteBook = async (id) => {
+            if (confirm("Сигурни ли сте, че искате да премахнете тази книга?")) {
+                try {
+                    await deleteDoc(doc(db, "books", id));
+                } catch (e) {
+                    alert("Грешка при изтриване!");
+                }
             }
+        };
 
-            if (loading) {
-                return (
-                    <div className="flex flex-col h-screen items-center justify-center">
-                        <div className="loader"></div>
-                        <p className="mt-4 text-slate-500 font-medium animate-pulse">Свързване с базата данни...</p>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="max-w-3xl mx-auto p-6">
-                    <header className="mb-10 text-center bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-                        <h1 className="text-3xl font-extrabold text-blue-600 mb-2">Библиотека Ресурси</h1>
-                        <p className="text-slate-500 font-medium">ЦСОП „Леда Милева“</p>
-                    </header>
-
-                    <div className="space-y-4">
-                        {resources.length === 0 ? (
-                            <div className="bg-white p-12 rounded-3xl text-center border border-dashed border-slate-300">
-                                <p className="text-slate-500 font-medium text-lg">Все още няма добавени ресурси.</p>
-                                <p className="text-sm text-slate-400 mt-2">Добавете документи директно през Firebase конзолата.</p>
-                            </div>
-                        ) : (
-                            resources.map(res => (
-                                <div key={res.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-shadow">
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-slate-800 text-lg mb-1">{res.title || "Без заглавие"}</h3>
-                                        <p className="text-sm text-slate-600">{res.description || "Няма налично описание"}</p>
-                                    </div>
-                                    <a href={res.link || "#"} target="_blank" rel="noopener noreferrer" className="bg-blue-50 text-blue-600 px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-600 hover:text-white transition-all whitespace-nowrap border border-blue-100">
-                                        Отвори
-                                    </a>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                    
-                    <footer className="mt-12 text-center text-slate-400 text-xs">
-                        ID на сесия: {user?.uid || 'Неизвестен'}
-                    </footer>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
     </script>
 </body>
 </html>
