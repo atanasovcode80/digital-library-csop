@@ -3,119 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дигитална Библиотека - ЦСОП</title>
+    <title>ЦСОП - Дигитални Ресурси</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
-        body { font-family: 'Montserrat', sans-serif; background: #f8fafc; }
-        .book-card:hover { transform: translateY(-5px); transition: all 0.3s ease; }
-        .loading-spinner { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
+        body { font-family: 'Ubuntu', sans-serif; background: #f8fafc; color: #1e293b; }
+        .main-gradient { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); }
+        .card-hover { transition: transform 0.2s, box-shadow 0.2s; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 20px -5px rgba(0,0,0,0.1); }
+        .footer-gradient { background: linear-gradient(to right, #1e293b, #334155, #1e293b); }
+        .category-tab.active { background: white; color: #2563eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="flex flex-col min-h-screen">
+
+    <!-- Login Bar (Top Mini) -->
+    <div class="bg-slate-900 text-white py-2 px-6 flex justify-end items-center gap-4 text-xs">
+        <span id="authStatusText">Режим: Посетител</span>
+        <button id="loginBtn" onclick="toggleModal('loginModal')" class="hover:text-blue-400 font-bold uppercase tracking-wider">
+            <i class="fas fa-lock mr-1"></i> Вход
+        </button>
+        <button id="logoutBtn" onclick="logout()" class="hidden hover:text-red-400 font-bold uppercase tracking-wider">
+            <i class="fas fa-sign-out-alt mr-1"></i> Изход
+        </button>
+    </div>
 
     <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-lg sticky top-0 z-50">
-        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <i class="fas fa-book-reader text-3xl"></i>
-                <h1 class="text-xl md:text-2xl font-bold tracking-tight">ЦСОП Дигитална Библиотека</h1>
+    <header class="main-gradient text-white shadow-2xl">
+        <div class="container mx-auto px-6 py-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="flex items-center gap-4">
+                    <div class="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
+                        <i class="fas fa-graduation-cap text-4xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-black uppercase tracking-tight">Библиотека ЦСОП</h1>
+                        <p class="text-blue-100 opacity-80">Център за специална образователна подкрепа</p>
+                    </div>
+                </div>
+                
+                <div id="adminActions" class="hidden flex gap-3">
+                    <button id="addCategoryBtn" onclick="toggleModal('categoryModal')" class="hidden bg-emerald-500 hover:bg-emerald-600 px-5 py-3 rounded-xl font-bold text-sm shadow-lg transition">
+                        <i class="fas fa-folder-plus mr-2"></i>Нова Категория
+                    </button>
+                    <button onclick="toggleModal('resourceModal')" class="bg-amber-400 hover:bg-amber-500 text-slate-900 px-5 py-3 rounded-xl font-bold text-sm shadow-lg transition">
+                        <i class="fas fa-plus-circle mr-2"></i>Добави Ресурс
+                    </button>
+                </div>
             </div>
-            <button onclick="toggleModal('addBookModal')" class="bg-white text-blue-700 px-4 py-2 rounded-full font-semibold hover:bg-blue-50 transition shadow-md">
-                <i class="fas fa-plus mr-2"></i>Добави книга
-            </button>
+
+            <!-- Stats & Search -->
+            <div class="mt-10 bg-white/10 backdrop-blur-md rounded-3xl p-6 shadow-inner">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                    <div class="md:col-span-2 space-y-3">
+                        <label class="text-xs font-bold uppercase tracking-widest ml-1 text-blue-100">Бързо търсене в ресурсите</label>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" id="mainSearch" placeholder="Търсете по име или описание..." 
+                                class="w-full pl-14 pr-6 py-4 rounded-2xl bg-white text-slate-800 shadow-xl border-none outline-none focus:ring-4 focus:ring-blue-400/50">
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <label class="text-xs font-bold uppercase tracking-widest ml-1 text-blue-100">Филтър</label>
+                        <select id="mainFilter" class="w-full px-5 py-4 rounded-2xl bg-white text-slate-800 font-bold shadow-xl border-none outline-none focus:ring-4 focus:ring-blue-400/50">
+                            <option value="all">Всички Секции</option>
+                            <option value="therapy">Секция: Терапия</option>
+                            <option value="education">Секция: Обучение</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-        
-        <!-- Search & Filter -->
-        <div class="mb-8 flex flex-col md:flex-row gap-4">
-            <div class="relative flex-1">
-                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input type="text" id="searchInput" placeholder="Търсене на заглавие или автор..." 
-                    class="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+    <!-- Content -->
+    <main class="container mx-auto px-6 py-12 flex-grow">
+        <!-- Main Tabs -->
+        <div class="flex justify-center mb-12">
+            <div class="bg-slate-200 p-2 rounded-2xl flex gap-2">
+                <button onclick="switchMainTab('therapy')" id="tab-therapy" class="category-tab active px-8 py-4 rounded-xl font-black uppercase text-sm transition flex items-center gap-3">
+                    <i class="fas fa-heartbeat"></i> Терапия 
+                    <span id="count-therapy" class="bg-slate-100 text-blue-600 px-2 py-0.5 rounded-md text-[10px]">0 | 0</span>
+                </button>
+                <button onclick="switchMainTab('education')" id="tab-education" class="category-tab px-8 py-4 rounded-xl font-black uppercase text-sm transition flex items-center gap-3">
+                    <i class="fas fa-book-reader"></i> Обучение
+                    <span id="count-education" class="bg-slate-100 text-blue-600 px-2 py-0.5 rounded-md text-[10px]">0 | 0</span>
+                </button>
             </div>
-            <select id="categoryFilter" class="px-4 py-3 rounded-xl border border-gray-200 bg-white outline-none shadow-sm">
-                <option value="all">Всички категории</option>
-                <option value="children">Детска литература</option>
-                <option value="classic">Класика</option>
-                <option value="educational">Учебна литература</option>
-                <option value="other">Други</option>
-            </select>
         </div>
 
-        <!-- Loading State -->
-        <div id="loadingOverlay" class="flex flex-col items-center justify-center py-20">
-            <div class="loading-spinner h-12 w-12 border-4 border-gray-200 rounded-full mb-4"></div>
-            <p class="text-gray-500 font-medium">Зареждане на библиотеката...</p>
+        <!-- Resources Grid -->
+        <div id="resourceContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Dynamic Content -->
         </div>
 
-        <!-- Book Grid -->
-        <div id="bookGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden">
-            <!-- Books will be injected here -->
-        </div>
-
-        <!-- Empty State -->
-        <div id="emptyState" class="hidden text-center py-20">
-            <i class="fas fa-books text-6xl text-gray-300 mb-4"></i>
-            <h3 class="text-xl font-semibold text-gray-600">Все още няма добавени книги</h3>
-            <p class="text-gray-400 mt-2">Бъдете първият, който ще добави книга в библиотеката.</p>
+        <!-- No Results -->
+        <div id="noResults" class="hidden text-center py-20 opacity-40">
+            <i class="fas fa-box-open text-6xl mb-4"></i>
+            <h3 class="text-xl font-bold">Няма намерени ресурси</h3>
         </div>
     </main>
 
-    <!-- Add Book Modal -->
-    <div id="addBookModal" class="fixed inset-0 bg-black/50 hidden z-[60] flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
-                <h2 class="text-xl font-bold text-gray-800">Добавяне на нова книга</h2>
-                <button onclick="toggleModal('addBookModal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+    <!-- Footer -->
+    <footer class="footer-gradient text-white py-12 border-t border-slate-700">
+        <div class="container mx-auto px-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
+                <div class="space-y-4">
+                    <h4 class="text-xl font-black uppercase text-blue-400">ЦСОП</h4>
+                    <p class="text-slate-400 text-sm leading-relaxed">Специализирана платформа за дигитални ресурси в помощ на специалисти и родители.</p>
+                </div>
+                <div class="space-y-4">
+                    <h4 class="text-xl font-black uppercase text-amber-400">Връзки</h4>
+                    <div class="flex flex-col gap-2 text-sm font-bold text-slate-300">
+                        <a href="#" class="hover:text-white">Начало</a>
+                        <a href="#" class="hover:text-white">Терапия</a>
+                        <a href="#" class="hover:text-white">Обучение</a>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center md:items-end justify-center">
+                    <div class="bg-white/5 p-6 rounded-3xl text-center">
+                        <span class="block text-4xl font-black text-blue-500" id="currentYear"></span>
+                        <span class="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-500">Всички права запазени</span>
+                    </div>
+                </div>
             </div>
-            <form id="addBookForm" class="p-6 space-y-4">
+        </div>
+    </footer>
+
+    <!-- Modals (Login, Category, Resource) -->
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+            <div class="p-8 text-center bg-slate-50 border-b">
+                <h3 class="text-2xl font-black text-slate-800">Вход за персонал</h3>
+            </div>
+            <div class="p-8 space-y-4">
+                <input type="password" id="passInput" placeholder="Въведете парола..." class="w-full p-4 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition">ВХОД</button>
+                <button onclick="toggleModal('loginModal')" class="w-full text-slate-400 font-bold text-sm">Отказ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Modal -->
+    <div id="categoryModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <form id="categoryForm" class="p-8 space-y-5">
+                <h3 class="text-xl font-bold border-b pb-4">Създаване на Подкатегория</h3>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Заглавие</label>
-                    <input type="text" name="title" required class="w-full p-3 rounded-lg border border-gray-200 focus:border-blue-500 outline-none">
+                    <label class="block text-xs font-bold mb-1">Име на подкатегория</label>
+                    <input type="text" name="catName" required class="w-full p-4 rounded-xl border border-slate-200 outline-none">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Автор</label>
-                    <input type="text" name="author" required class="w-full p-3 rounded-lg border border-gray-200 focus:border-blue-500 outline-none">
+                    <label class="block text-xs font-bold mb-1">Главна Секция</label>
+                    <select name="mainSection" class="w-full p-4 rounded-xl border border-slate-200 outline-none">
+                        <option value="therapy">Терапия</option>
+                        <option value="education">Обучение</option>
+                    </select>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Категория</label>
-                        <select name="category" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
-                            <option value="children">Детска</option>
-                            <option value="classic">Класика</option>
-                            <option value="educational">Учебна</option>
-                            <option value="other">Други</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Година</label>
-                        <input type="number" name="year" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Линк към PDF / Корица</label>
-                    <input type="url" name="link" placeholder="https://example.com/book.pdf" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
-                </div>
-                <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg mt-4">
-                    <i class="fas fa-save mr-2"></i>Запази книгата
-                </button>
+                <button type="submit" class="w-full bg-emerald-500 text-white py-4 rounded-xl font-bold shadow-lg">СЪЗДАЙ</button>
+                <button type="button" onclick="toggleModal('categoryModal')" class="w-full text-slate-400 font-bold">Затвори</button>
             </form>
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- Resource Modal -->
+    <div id="resourceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <form id="resourceForm" class="p-8 space-y-4">
+                <h3 class="text-xl font-bold border-b pb-4">Добавяне на Ресурс</h3>
+                <input type="text" name="resTitle" placeholder="Заглавие..." required class="w-full p-4 rounded-xl border border-slate-200 outline-none">
+                <select name="resSubCat" id="resSubCatSelect" class="w-full p-4 rounded-xl border border-slate-200 outline-none">
+                    <!-- Подкатегориите се зареждат тук -->
+                </select>
+                <input type="url" name="resLink" placeholder="Линк (URL)..." required class="w-full p-4 rounded-xl border border-slate-200 outline-none font-mono">
+                <button type="submit" class="w-full bg-amber-500 text-slate-900 py-4 rounded-xl font-bold shadow-lg uppercase">Добави</button>
+                <button type="button" onclick="toggleModal('resourceModal')" class="w-full text-slate-400 font-bold">Затвори</button>
+            </form>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Твоята конфигурация, преписана от снимка image_ff9e9e.png
-        const myGithubFirebaseConfig = {
+        // Firebase Config
+        const firebaseConfig = {
             apiKey: "AIzaSyDMUx2UvYY26wU5WZ33Cy6S--Rwl2ZOUcY",
             authDomain: "digital-library-csop.firebaseapp.com",
             projectId: "digital-library-csop",
@@ -124,119 +198,189 @@
             appId: "1:277590147002:web:1b179531c66ce742e2783"
         };
 
-        // Инициализация
-        const app = initializeApp(myGithubFirebaseConfig);
+        const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const booksCol = collection(db, "books");
+        
+        // Collections
+        const colRes = collection(db, "resources");
+        const colCat = collection(db, "subcategories");
 
-        // Елементи от DOM
-        const bookGrid = document.getElementById('bookGrid');
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        const emptyState = document.getElementById('emptyState');
-        const searchInput = document.getElementById('searchInput');
-        const categoryFilter = document.getElementById('categoryFilter');
-        const addBookForm = document.getElementById('addBookForm');
+        // State
+        let currentRole = 'visitor'; // visitor, admin, superadmin
+        let currentTab = 'therapy';
+        let allResources = [];
+        let allCategories = [];
 
-        let allBooks = [];
+        // App Logic
+        window.onload = () => {
+            document.getElementById('currentYear').innerText = new Date().getFullYear();
+            loadData();
+        };
 
-        // Слушане за промени в реално време
-        onSnapshot(query(booksCol), (snapshot) => {
-            allBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            renderBooks();
-            loadingOverlay.classList.add('hidden');
-        }, (error) => {
-            console.error("Грешка при четене:", error);
-            alert("Липсват права за достъп до базата данни. Моля, провери Firestore Rules!");
-        });
+        // Auth
+        window.handleLogin = () => {
+            const pass = document.getElementById('passInput').value;
+            const authStatus = document.getElementById('authStatusText');
+            const adminActions = document.getElementById('adminActions');
+            const addCatBtn = document.getElementById('addCategoryBtn');
 
-        // Функция за рендериране
-        function renderBooks() {
-            const searchTerm = searchInput.value.toLowerCase();
-            const selectedCat = categoryFilter.value;
+            if (pass === 'As800224@') {
+                currentRole = 'superadmin';
+                authStatus.innerText = 'Режим: Super Admin';
+                adminActions.classList.remove('hidden');
+                addCatBtn.classList.remove('hidden');
+                toggleModal('loginModal');
+            } else if (pass === '1500510') {
+                currentRole = 'admin';
+                authStatus.innerText = 'Режим: Admin';
+                adminActions.classList.remove('hidden');
+                addCatBtn.classList.add('hidden');
+                toggleModal('loginModal');
+            } else {
+                alert('Грешна парола!');
+                return;
+            }
+            document.getElementById('loginBtn').classList.add('hidden');
+            document.getElementById('logoutBtn').classList.remove('hidden');
+            renderResources();
+        };
 
-            const filtered = allBooks.filter(book => {
-                const matchesSearch = book.title.toLowerCase().includes(searchTerm) || book.author.toLowerCase().includes(searchTerm);
-                const matchesCat = selectedCat === 'all' || book.category === selectedCat;
-                return matchesSearch && matchesCat;
+        window.logout = () => {
+            currentRole = 'visitor';
+            location.reload();
+        };
+
+        // Data Sync
+        function loadData() {
+            onSnapshot(query(colCat, orderBy("name")), (snap) => {
+                allCategories = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                updateSelects();
+                updateStats();
+            });
+
+            onSnapshot(query(colRes, orderBy("timestamp", "desc")), (snap) => {
+                allResources = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderResources();
+                updateStats();
+            });
+        }
+
+        function updateSelects() {
+            const select = document.getElementById('resSubCatSelect');
+            select.innerHTML = allCategories.map(c => `
+                <option value="${c.id}">${c.main === 'therapy' ? '[Т]' : '[О]'} ${c.name}</option>
+            `).join('');
+        }
+
+        function updateStats() {
+            const tRes = allResources.filter(r => getCatMain(r.subId) === 'therapy').length;
+            const tCat = allCategories.filter(c => c.main === 'therapy').length;
+            const eRes = allResources.filter(r => getCatMain(r.subId) === 'education').length;
+            const eCat = allCategories.filter(c => c.main === 'education').length;
+
+            document.getElementById('count-therapy').innerText = `${tCat} кат. | ${tRes} рес.`;
+            document.getElementById('count-education').innerText = `${eCat} кат. | ${eRes} рес.`;
+        }
+
+        function getCatMain(subId) {
+            return allCategories.find(c => c.id === subId)?.main || 'none';
+        }
+
+        function getCatName(subId) {
+            return allCategories.find(c => c.id === subId)?.name || 'Неизвестна';
+        }
+
+        // Render
+        window.switchMainTab = (tab) => {
+            currentTab = tab;
+            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            renderResources();
+        };
+
+        function renderResources() {
+            const search = document.getElementById('mainSearch').value.toLowerCase();
+            const filter = document.getElementById('mainFilter').value;
+            const container = document.getElementById('resourceContainer');
+
+            const filtered = allResources.filter(r => {
+                const sub = allCategories.find(c => c.id === r.subId);
+                if (!sub) return false;
+                
+                const matchesMain = filter === 'all' ? sub.main === currentTab : sub.main === filter;
+                const matchesSearch = r.title.toLowerCase().includes(search);
+                
+                return matchesMain && matchesSearch;
             });
 
             if (filtered.length === 0) {
-                bookGrid.classList.add('hidden');
-                emptyState.classList.remove('hidden');
-            } else {
-                emptyState.classList.add('hidden');
-                bookGrid.classList.remove('hidden');
-                bookGrid.innerHTML = filtered.map(book => `
-                    <div class="book-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative group">
-                        <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition">
-                            <button onclick="deleteBook('${book.id}')" class="text-red-400 hover:text-red-600 p-2 bg-red-50 rounded-lg">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                        <div class="h-40 bg-gray-50 rounded-xl mb-4 flex items-center justify-center text-blue-300">
-                             <i class="fas fa-book text-5xl"></i>
-                        </div>
-                        <h3 class="font-bold text-lg text-gray-800 truncate">${book.title}</h3>
-                        <p class="text-gray-500 text-sm mb-4">от ${book.author}</p>
-                        <div class="flex items-center justify-between mt-auto">
-                            <span class="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-full uppercase">
-                                ${book.category || 'Общи'}
+                container.innerHTML = '';
+                document.getElementById('noResults').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('noResults').classList.add('hidden');
+            container.innerHTML = filtered.map(r => `
+                <div class="card-hover bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-[10px] font-black px-3 py-1 bg-slate-100 text-slate-500 rounded-lg uppercase tracking-wider">
+                                <i class="fas fa-folder mr-1"></i> ${getCatName(r.subId)}
                             </span>
-                            ${book.link ? `
-                                <a href="${book.link}" target="_blank" class="text-blue-600 hover:underline font-semibold text-sm">
-                                    Отвори <i class="fas fa-external-link-alt ml-1"></i>
-                                </a>
+                            ${currentRole === 'superadmin' ? `
+                                <button onclick="window.deleteRes('${r.id}')" class="text-slate-300 hover:text-red-500 transition">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
                             ` : ''}
                         </div>
+                        <h4 class="font-bold text-lg text-slate-800 leading-tight mb-4">${r.title}</h4>
                     </div>
-                `).join('');
-            }
+                    
+                    <a href="${r.link}" target="_blank" class="w-full bg-slate-50 hover:bg-blue-600 hover:text-white text-blue-600 py-3 rounded-xl text-center font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        Отвори Ресурс <i class="fas fa-external-link-alt text-[10px]"></i>
+                    </a>
+                </div>
+            `).join('');
         }
 
-        // Търсене и филтри
-        searchInput.oninput = renderBooks;
-        categoryFilter.onchange = renderBooks;
-
-        // Добавяне на книга
-        addBookForm.onsubmit = async (e) => {
+        // Forms
+        document.getElementById('categoryForm').onsubmit = async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-circle-notch animate-spin"></i> Запазване...';
-
-            const formData = new FormData(addBookForm);
-            try {
-                await addDoc(booksCol, {
-                    title: formData.get('title'),
-                    author: formData.get('author'),
-                    category: formData.get('category'),
-                    year: formData.get('year'),
-                    link: formData.get('link'),
-                    timestamp: new Date()
-                });
-                toggleModal('addBookModal');
-                addBookForm.reset();
-            } catch (e) {
-                alert("Грешка при запис: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-save mr-2"></i>Запази книгата';
-            }
+            const fd = new FormData(e.target);
+            await addDoc(colCat, {
+                name: fd.get('catName'),
+                main: fd.get('mainSection')
+            });
+            e.target.reset();
+            toggleModal('categoryModal');
         };
 
-        // Изтриване
-        window.deleteBook = async (id) => {
-            if(confirm("Сигурни ли сте, че искате да премахнете тази книга?")) {
-                await deleteDoc(doc(db, "books", id));
-            }
+        document.getElementById('resourceForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            await addDoc(colRes, {
+                title: fd.get('resTitle'),
+                subId: fd.get('resSubCat'),
+                link: fd.get('resLink'),
+                timestamp: serverTimestamp()
+            });
+            e.target.reset();
+            toggleModal('resourceModal');
         };
 
-        // Глобални UI функции
+        window.deleteRes = async (id) => {
+            if(confirm('Изтриване на този ресурс?')) await deleteDoc(doc(db, "resources", id));
+        };
+
+        // UI Helpers
         window.toggleModal = (id) => {
-            const modal = document.getElementById(id);
-            modal.classList.toggle('hidden');
+            const m = document.getElementById(id);
+            m.classList.toggle('hidden');
         };
-    </script>
 
+        document.getElementById('mainSearch').oninput = renderResources;
+        document.getElementById('mainFilter').onchange = renderResources;
+
+    </script>
 </body>
 </html>
