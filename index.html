@@ -3,237 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дигитална Библиотека | ЦСОП</title>
-    <!-- Tailwind CSS за модерен дизайн -->
+    <title>Дигитална Библиотека - ЦСОП</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome за икони -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
-        
-        body { 
-            font-family: 'Montserrat', sans-serif; 
-            background-color: #f1f5f9;
-        }
-
-        .book-card {
-            transition: all 0.3s ease;
-            border-radius: 1.5rem;
-        }
-
-        .book-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-        }
-
-        .gradient-header {
-            background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-        }
-
-        .loader-spin {
-            border-top-color: #3b82f6;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .modal-show {
-            display: flex !important;
-        }
+        body { font-family: 'Montserrat', sans-serif; background: #f8fafc; }
+        .book-card:hover { transform: translateY(-5px); transition: all 0.3s ease; }
+        .loading-spinner { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen">
 
-    <!-- Хедър -->
-    <header class="gradient-header text-white shadow-xl p-6 mb-8">
-        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center space-x-4">
-                <div class="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-                    <i class="fas fa-book text-3xl text-white"></i>
-                </div>
-                <div>
-                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Библиотека ЦСОП</h1>
-                    <p class="text-blue-100 text-sm font-medium">Дигитални ресурси и книги</p>
-                </div>
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-book-reader text-3xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold tracking-tight">ЦСОП Дигитална Библиотека</h1>
             </div>
-            <button id="openModalBtn" class="bg-white text-blue-700 font-bold py-3 px-8 rounded-2xl shadow-lg hover:bg-blue-50 transition active:scale-95 flex items-center gap-2">
-                <i class="fas fa-plus-circle"></i> Добави Книга
+            <button onclick="toggleModal('addBookModal')" class="bg-white text-blue-700 px-4 py-2 rounded-full font-semibold hover:bg-blue-50 transition shadow-md">
+                <i class="fas fa-plus mr-2"></i>Добави книга
             </button>
         </div>
     </header>
 
-    <main class="container mx-auto px-4 flex-grow pb-12">
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
         
-        <!-- Модална форма за добавяне -->
-        <div id="addBookModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-            <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
-                <div class="bg-blue-600 p-6 text-white flex justify-between items-center">
-                    <h2 class="text-xl font-bold">Нова книга</h2>
-                    <button id="closeModalBtn" class="text-white/80 hover:text-white transition">
-                        <i class="fas fa-times text-2xl"></i>
-                    </button>
-                </div>
-                <div class="p-8 space-y-5">
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Заглавие</label>
-                        <input type="text" id="titleInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Пример: Под игото">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Автор</label>
-                        <input type="text" id="authorInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Пример: Иван Вазов">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-bold mb-2">Линк към корица (URL)</label>
-                        <input type="text" id="coverInput" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="https://example.com/image.jpg">
-                    </div>
-                    <button id="saveBookBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition duration-300">
-                        Запази в каталога
-                    </button>
-                </div>
+        <!-- Search & Filter -->
+        <div class="mb-8 flex flex-col md:flex-row gap-4">
+            <div class="relative flex-1">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="searchInput" placeholder="Търсене на заглавие или автор..." 
+                    class="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
             </div>
+            <select id="categoryFilter" class="px-4 py-3 rounded-xl border border-gray-200 bg-white outline-none shadow-sm">
+                <option value="all">Всички категории</option>
+                <option value="children">Детска литература</option>
+                <option value="classic">Класика</option>
+                <option value="educational">Учебна литература</option>
+                <option value="other">Други</option>
+            </select>
         </div>
 
-        <!-- Индикатор за зареждане -->
-        <div id="loadingIndicator" class="flex flex-col items-center justify-center py-24">
-            <div class="loader-spin rounded-full border-4 border-gray-200 h-14 w-14 mb-4"></div>
-            <p class="text-gray-500 font-semibold italic">Свързване с библиотеката...</p>
+        <!-- Loading State -->
+        <div id="loadingOverlay" class="flex flex-col items-center justify-center py-20">
+            <div class="loading-spinner h-12 w-12 border-4 border-gray-200 rounded-full mb-4"></div>
+            <p class="text-gray-500 font-medium">Зареждане на библиотеката...</p>
         </div>
 
-        <!-- Мрежа с книги -->
-        <div id="booksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            <!-- Книгите ще се заредят тук динамично -->
+        <!-- Book Grid -->
+        <div id="bookGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden">
+            <!-- Books will be injected here -->
         </div>
 
-        <!-- Празно състояние -->
-        <div id="emptyState" class="hidden text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
-            <i class="fas fa-folder-open text-6xl text-gray-200 mb-6"></i>
-            <h3 class="text-xl font-bold text-gray-400">Библиотеката е празна</h3>
-            <p class="text-gray-400 mt-2">Добавете първата книга, за да започнете.</p>
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <i class="fas fa-books text-6xl text-gray-300 mb-4"></i>
+            <h3 class="text-xl font-semibold text-gray-600">Все още няма добавени книги</h3>
+            <p class="text-gray-400 mt-2">Бъдете първият, който ще добави книга в библиотеката.</p>
         </div>
     </main>
 
-    <!-- Футър -->
-    <footer class="bg-white border-t border-gray-100 py-10 text-center text-gray-400 text-sm">
-        <div class="container mx-auto">
-            <p class="font-bold text-gray-500 mb-2">ЦСОП „Леда Милева“</p>
-            <p>&copy; 2024 Дигитална Библиотека. Всички права запазени.</p>
+    <!-- Add Book Modal -->
+    <div id="addBookModal" class="fixed inset-0 bg-black/50 hidden z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h2 class="text-xl font-bold text-gray-800">Добавяне на нова книга</h2>
+                <button onclick="toggleModal('addBookModal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <form id="addBookForm" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Заглавие</label>
+                    <input type="text" name="title" required class="w-full p-3 rounded-lg border border-gray-200 focus:border-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Автор</label>
+                    <input type="text" name="author" required class="w-full p-3 rounded-lg border border-gray-200 focus:border-blue-500 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Категория</label>
+                        <select name="category" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
+                            <option value="children">Детска</option>
+                            <option value="classic">Класика</option>
+                            <option value="educational">Учебна</option>
+                            <option value="other">Други</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Година</label>
+                        <input type="number" name="year" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Линк към PDF / Корица</label>
+                    <input type="url" name="link" placeholder="https://example.com/book.pdf" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
+                </div>
+                <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg mt-4">
+                    <i class="fas fa-save mr-2"></i>Запази книгата
+                </button>
+            </form>
         </div>
-    </footer>
+    </div>
 
-    <!-- Firebase SDK (Modular) -->
+    <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Твоята Firebase конфигурация
-        const firebaseConfig = {
+        // Твоята конфигурация, преписана от снимка image_ff9e9e.png
+        const myGithubFirebaseConfig = {
             apiKey: "AIzaSyDMUx2UvYY26wU5WZ33Cy6S--Rwl2ZOUcY",
             authDomain: "digital-library-csop.firebaseapp.com",
             projectId: "digital-library-csop",
             storageBucket: "digital-library-csop.firebasestorage.app",
             messagingSenderId: "277590147002",
-            appId: "1:277590147002:web:1b179531c66cef742e2783"
+            appId: "1:277590147002:web:1b179531c66ce742e2783"
         };
 
-        // Инициализиране
-        const app = initializeApp(firebaseConfig);
+        // Инициализация
+        const app = initializeApp(myGithubFirebaseConfig);
         const db = getFirestore(app);
-        const booksRef = collection(db, "books");
+        const booksCol = collection(db, "books");
 
-        // UI Елементи
-        const booksGrid = document.getElementById('booksGrid');
-        const loadingIndicator = document.getElementById('loadingIndicator');
+        // Елементи от DOM
+        const bookGrid = document.getElementById('bookGrid');
+        const loadingOverlay = document.getElementById('loadingOverlay');
         const emptyState = document.getElementById('emptyState');
-        const bookModal = document.getElementById('addBookModal');
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const addBookForm = document.getElementById('addBookForm');
 
-        // Контрол на модала
-        document.getElementById('openModalBtn').onclick = () => bookModal.classList.add('modal-show');
-        document.getElementById('closeModalBtn').onclick = () => bookModal.classList.remove('modal-show');
-        
-        // Затваряне при клик извън формата
-        window.onclick = (e) => {
-            if (e.target == bookModal) bookModal.classList.remove('modal-show');
-        };
+        let allBooks = [];
 
-        // Запазване на нова книга
-        document.getElementById('saveBookBtn').onclick = async () => {
-            const title = document.getElementById('titleInput').value.trim();
-            const author = document.getElementById('authorInput').value.trim();
-            const cover = document.getElementById('coverInput').value.trim() || 'https://images.unsplash.com/photo-1543005120-a1bb3ea0b6cb?w=600';
-
-            if (!title || !author) {
-                alert("Моля, попълнете заглавие и автор!");
-                return;
-            }
-
-            try {
-                await addDoc(booksRef, {
-                    title: title,
-                    author: author,
-                    cover: cover,
-                    createdAt: serverTimestamp()
-                });
-                
-                // Изчистване и затваряне
-                document.getElementById('titleInput').value = '';
-                document.getElementById('authorInput').value = '';
-                document.getElementById('coverInput').value = '';
-                bookModal.classList.remove('modal-show');
-            } catch (err) {
-                console.error("Грешка при запис:", err);
-                alert("Неуспешно записване. Проверете Firestore Rules.");
-            }
-        };
-
-        // Слушане за данни в реално време
-        const q = query(booksRef, orderBy("createdAt", "desc"));
-        onSnapshot(q, (snapshot) => {
-            loadingIndicator.style.display = 'none';
-            booksGrid.innerHTML = '';
-            
-            if (snapshot.empty) {
-                emptyState.classList.remove('hidden');
-                return;
-            }
-
-            emptyState.classList.add('hidden');
-            snapshot.forEach((bookDoc) => {
-                const data = bookDoc.data();
-                const bookCard = document.createElement('div');
-                bookCard.className = "book-card bg-white overflow-hidden shadow-sm border border-gray-100 flex flex-col h-full";
-                
-                bookCard.innerHTML = `
-                    <div class="relative h-64 overflow-hidden group">
-                        <img src="${data.cover}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onerror="this.src='https://images.unsplash.com/photo-1543005120-a1bb3ea0b6cb?w=600'">
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <button onclick="window.deleteBook('${bookDoc.id}')" class="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition shadow-xl">
-                                <i class="fas fa-trash-alt text-lg"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="p-6 flex-grow">
-                        <h3 class="font-bold text-xl text-gray-800 leading-tight mb-2">${data.title}</h3>
-                        <p class="text-blue-600 font-bold text-sm uppercase tracking-widest">${data.author}</p>
-                    </div>
-                `;
-                booksGrid.appendChild(bookCard);
-            });
+        // Слушане за промени в реално време
+        onSnapshot(query(booksCol), (snapshot) => {
+            allBooks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderBooks();
+            loadingOverlay.classList.add('hidden');
+        }, (error) => {
+            console.error("Грешка при четене:", error);
+            alert("Липсват права за достъп до базата данни. Моля, провери Firestore Rules!");
         });
 
-        // Функция за изтриване
-        window.deleteBook = async (id) => {
-            if (confirm("Сигурни ли сте, че искате да премахнете тази книга?")) {
-                try {
-                    await deleteDoc(doc(db, "books", id));
-                } catch (e) {
-                    alert("Грешка при изтриване!");
-                }
+        // Функция за рендериране
+        function renderBooks() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedCat = categoryFilter.value;
+
+            const filtered = allBooks.filter(book => {
+                const matchesSearch = book.title.toLowerCase().includes(searchTerm) || book.author.toLowerCase().includes(searchTerm);
+                const matchesCat = selectedCat === 'all' || book.category === selectedCat;
+                return matchesSearch && matchesCat;
+            });
+
+            if (filtered.length === 0) {
+                bookGrid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                bookGrid.classList.remove('hidden');
+                bookGrid.innerHTML = filtered.map(book => `
+                    <div class="book-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative group">
+                        <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition">
+                            <button onclick="deleteBook('${book.id}')" class="text-red-400 hover:text-red-600 p-2 bg-red-50 rounded-lg">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                        <div class="h-40 bg-gray-50 rounded-xl mb-4 flex items-center justify-center text-blue-300">
+                             <i class="fas fa-book text-5xl"></i>
+                        </div>
+                        <h3 class="font-bold text-lg text-gray-800 truncate">${book.title}</h3>
+                        <p class="text-gray-500 text-sm mb-4">от ${book.author}</p>
+                        <div class="flex items-center justify-between mt-auto">
+                            <span class="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-full uppercase">
+                                ${book.category || 'Общи'}
+                            </span>
+                            ${book.link ? `
+                                <a href="${book.link}" target="_blank" class="text-blue-600 hover:underline font-semibold text-sm">
+                                    Отвори <i class="fas fa-external-link-alt ml-1"></i>
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Търсене и филтри
+        searchInput.oninput = renderBooks;
+        categoryFilter.onchange = renderBooks;
+
+        // Добавяне на книга
+        addBookForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch animate-spin"></i> Запазване...';
+
+            const formData = new FormData(addBookForm);
+            try {
+                await addDoc(booksCol, {
+                    title: formData.get('title'),
+                    author: formData.get('author'),
+                    category: formData.get('category'),
+                    year: formData.get('year'),
+                    link: formData.get('link'),
+                    timestamp: new Date()
+                });
+                toggleModal('addBookModal');
+                addBookForm.reset();
+            } catch (e) {
+                alert("Грешка при запис: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save mr-2"></i>Запази книгата';
             }
         };
 
+        // Изтриване
+        window.deleteBook = async (id) => {
+            if(confirm("Сигурни ли сте, че искате да премахнете тази книга?")) {
+                await deleteDoc(doc(db, "books", id));
+            }
+        };
+
+        // Глобални UI функции
+        window.toggleModal = (id) => {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('hidden');
+        };
     </script>
+
 </body>
 </html>
