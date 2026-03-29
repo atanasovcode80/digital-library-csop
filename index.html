@@ -11,14 +11,14 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Firebase SDK (Compat) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <style>
         body { background-color: #f1f5f9; font-family: sans-serif; }
-        .loader { border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        .loader { border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -26,84 +26,133 @@
     <div id="root">
         <div style="display: flex; height: 100vh; align-items: center; justify-content: center; flex-direction: column;">
             <div class="loader"></div>
-            <p style="margin-top: 15px; color: #64748b;">Подготовка на ресурсите...</p>
+            <p style="margin-top: 15px; color: #64748b; font-weight: bold;">Зареждане на интерфейса...</p>
         </div>
     </div>
 
     <script type="text/babel">
-        // Инициализация на Firebase
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // ====================================================================
+        // СТЪПКА 1: ВЪВЕДЕТЕ ВАШИТЕ FIREBASE ДАННИ ТУК (За GitHub Pages)
+        // Вземете ги от Project Overview -> Project Settings -> General -> Your apps
+        // ====================================================================
+        const myGithubFirebaseConfig = {
+            apiKey: "",           // Напр: "AIzaSyDOCAbC123..."
+            authDomain: "",       // Напр: "digital-library-csop.firebaseapp.com"
+            projectId: "",        // Напр: "digital-library-csop"
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: ""
+        };
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+        // Логика за безопасно зареждане на конфигурацията
+        let firebaseConfig = null;
+        let activeAppId = 'digital-library'; 
+        let isConfigured = false;
+
+        try {
+            // Проверява дали се намираме в Canvas средата (тук)
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                activeAppId = typeof __app_id !== 'undefined' ? __app_id : activeAppId;
+                isConfigured = true;
+            } 
+            // Ако сме в GitHub Pages и сте попълнили данните горе
+            else if (myGithubFirebaseConfig.apiKey !== "") {
+                firebaseConfig = myGithubFirebaseConfig;
+                isConfigured = true;
+            }
+        } catch (e) {
+            console.error("Грешка при четене на конфигурацията:", e);
         }
-        
-        const db = firebase.firestore();
-        const auth = firebase.auth();
+
+        // Инициализация на Firebase САМО ако имаме конфигурация
+        let db = null;
+        let auth = null;
+        if (isConfigured) {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            auth = firebase.auth();
+        }
 
         function App() {
+            // Ако липсва конфигурация (напр. току-що качено в GitHub без ключове)
+            if (!isConfigured) {
+                return (
+                    <div className="flex flex-col h-screen items-center justify-center p-6 bg-slate-100">
+                        <div className="bg-white p-8 rounded-2xl shadow-lg border border-red-200 max-w-lg text-center">
+                            <h2 className="text-2xl font-bold text-red-500 mb-4">Липсва Firebase конфигурация!</h2>
+                            <p className="text-slate-600 mb-4">
+                                За да работи приложението в GitHub Pages, трябва да отворите файла <strong>index.html</strong> с текстов редактор и да попълните вашите ключове в обекта <code>myGithubFirebaseConfig</code> на ред 38.
+                            </p>
+                            <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded">
+                                Можете да ги намерите във Firebase конзолата: Project Settings ➔ General ➔ Your apps.
+                            </p>
+                        </div>
+                    </div>
+                );
+            }
+
             const [resources, setResources] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
             const [user, setUser] = React.useState(null);
-            const [authError, setAuthError] = React.useState(null);
+            const [errorMsg, setErrorMsg] = React.useState(null);
 
-            // 1. Инициализация на сесията (Auth)
             React.useEffect(() => {
-                const initAuth = async () => {
+                const setup = async () => {
                     try {
-                        // Приоритет на токена от системата
+                        // 1. Анонимно вписване
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
                             await auth.signInAnonymously();
                         }
+
+                        auth.onAuthStateChanged((currentUser) => {
+                            if (currentUser) {
+                                setUser(currentUser);
+                                
+                                // 2. Зареждане на данни от Firestore
+                                // Опростен път до колекцията за по-лесно управление
+                                const collectionPath = typeof __firebase_config !== 'undefined' 
+                                    ? `artifacts/${activeAppId}/public/data/resources` // Път за Canvas
+                                    : `resources`; // Опростен път за вашия собствен Firebase проект
+
+                                const unsubscribe = db.collection(collectionPath).onSnapshot(
+                                    (snapshot) => {
+                                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                                        setResources(data);
+                                        setLoading(false);
+                                    },
+                                    (err) => {
+                                        console.error("Грешка от базата данни:", err);
+                                        setErrorMsg("Нямате права за достъп до базата данни. Моля, публикувайте правилата във Firebase.");
+                                        setLoading(false);
+                                    }
+                                );
+                                
+                                return () => unsubscribe();
+                            }
+                        });
+
                     } catch (err) {
-                        console.error("Auth error:", err);
-                        setAuthError(err.message);
+                        console.error("Грешка при инициализация:", err);
+                        setErrorMsg(err.message);
                         setLoading(false);
                     }
                 };
 
-                initAuth();
-                
-                // Слушател за състоянието на входа
-                const unsubscribe = auth.onAuthStateChanged((u) => {
-                    if (u) {
-                        setUser(u);
-                    }
-                });
-                
-                return () => unsubscribe();
+                setup();
             }, []);
 
-            // 2. Извличане на данни - стартира САМО след успешен Auth
-            React.useEffect(() => {
-                if (!user) return; // ПРЕКРАТЯВА, ако няма потребител, за да избегне грешката за права
-
-                const path = `artifacts/${appId}/public/data/resources`;
-                
-                const unsubscribe = db.collection(path).onSnapshot(
-                    (snapshot) => {
-                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        setResources(data);
-                        setLoading(false);
-                    },
-                    (error) => {
-                        console.error("Firestore error:", error);
-                        setLoading(false);
-                    }
-                );
-
-                return () => unsubscribe();
-            }, [user]); // Зависимост от 'user'
-
-            if (authError) {
+            if (errorMsg) {
                 return (
                     <div className="flex h-screen items-center justify-center p-6 text-center">
-                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-red-100">
-                            <p className="text-red-500 font-bold mb-2">Грешка при оторизация</p>
-                            <p className="text-slate-500 text-sm">{authError}</p>
+                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-red-200 max-w-md">
+                            <p className="text-red-600 font-bold mb-2 text-lg">Възникна проблем</p>
+                            <p className="text-slate-600">{errorMsg}</p>
+                            <button onClick={() => window.location.reload()} className="mt-4 bg-slate-800 text-white px-4 py-2 rounded hover:bg-slate-700">Опитай отново</button>
                         </div>
                     </div>
                 );
@@ -111,42 +160,43 @@
 
             if (loading) {
                 return (
-                    <div className="flex h-screen items-center justify-center">
+                    <div className="flex flex-col h-screen items-center justify-center">
                         <div className="loader"></div>
+                        <p className="mt-4 text-slate-500 font-medium animate-pulse">Свързване с базата данни...</p>
                     </div>
                 );
             }
 
             return (
-                <div className="max-w-2xl mx-auto p-6">
-                    <header className="mb-8 text-center">
-                        <h1 className="text-2xl font-bold text-slate-800">Библиотека Ресурси</h1>
-                        <p className="text-slate-500">ЦСОП „Леда Милева“</p>
+                <div className="max-w-3xl mx-auto p-6">
+                    <header className="mb-10 text-center bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                        <h1 className="text-3xl font-extrabold text-blue-600 mb-2">Библиотека Ресурси</h1>
+                        <p className="text-slate-500 font-medium">ЦСОП „Леда Милева“</p>
                     </header>
 
                     <div className="space-y-4">
                         {resources.length === 0 ? (
-                            <div className="bg-white p-10 rounded-2xl text-center border border-slate-200">
-                                <p className="text-slate-400 font-medium">Няма открити ресурси.</p>
-                                <p className="text-xs text-slate-300 mt-2">Свързан като: {user?.uid}</p>
+                            <div className="bg-white p-12 rounded-3xl text-center border border-dashed border-slate-300">
+                                <p className="text-slate-500 font-medium text-lg">Все още няма добавени ресурси.</p>
+                                <p className="text-sm text-slate-400 mt-2">Добавете документи директно през Firebase конзолата.</p>
                             </div>
                         ) : (
                             resources.map(res => (
-                                <div key={res.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                                    <div>
-                                        <h3 className="font-bold text-slate-700">{res.title || "Без заглавие"}</h3>
-                                        <p className="text-sm text-slate-500">{res.description || "Няма описание"}</p>
+                                <div key={res.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-shadow">
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-slate-800 text-lg mb-1">{res.title || "Без заглавие"}</h3>
+                                        <p className="text-sm text-slate-600">{res.description || "Няма налично описание"}</p>
                                     </div>
-                                    <a href={res.link} target="_blank" className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-600 hover:text-white transition-colors">
-                                        Виж
+                                    <a href={res.link || "#"} target="_blank" rel="noopener noreferrer" className="bg-blue-50 text-blue-600 px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-600 hover:text-white transition-all whitespace-nowrap border border-blue-100">
+                                        Отвори
                                     </a>
                                 </div>
                             ))
                         )}
                     </div>
                     
-                    <footer className="mt-12 text-center text-slate-300 text-xs">
-                        Потребител: {user?.uid}
+                    <footer className="mt-12 text-center text-slate-400 text-xs">
+                        ID на сесия: {user?.uid || 'Неизвестен'}
                     </footer>
                 </div>
             );
